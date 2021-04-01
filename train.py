@@ -6,11 +6,11 @@ import os
 from tensorflow.keras.callbacks import ReduceLROnPlateau, ModelCheckpoint
 from model.model_builder import model_build
 from preprocessing import pascal_prepare_dataset
-
+import loss
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=16)
+parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=1)
 parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=200)
 parser.add_argument("--image_size",     type=int,   help="모델 입력 이미지 크기 설정", default=512)
 parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.001)
@@ -25,7 +25,7 @@ parser.add_argument("--pretrain_mode",  type=bool,  help="저장되어 있는 �
 args = parser.parse_args()
 BATCH_SIZE = args.batch_size
 EPOCHS = args.epoch
-IMAGE_SIZE = [args.image_size, args.image_size]
+IMAGE_SIZE = [1024, 2048]
 base_lr = args.lr
 SAVE_MODEL_NAME = args.model_name
 DATASET_DIR = args.dataset_dir
@@ -50,9 +50,13 @@ test_ds = tfds.load('cityscapes/semantic_segmentation', data_dir=DATASET_DIR, sp
 train_data = train_ds.concatenate(valid_ds)
 
 
-number_train = train_data.reduce(0, lambda x, _: x + 1).numpy()
+
+
+# number_train = train_data.reduce(0, lambda x, _: x + 1).numpy()
+number_train = 3475
 print("학습 데이터 개수", number_train)
-number_test = test_ds.reduce(0, lambda x, _: x + 1).numpy()
+# number_test = test_ds.reduce(0, lambda x, _: x + 1).numpy()
+number_test = 1525
 print("테스트 데이터 개수:", number_test)
 optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
 # optimizer = tf.keras.optimizers.SGD(learning_rate=base_lr, momentum=0.9)
@@ -63,7 +67,7 @@ validation_dataset = pascal_prepare_dataset(test_ds, BATCH_SIZE,
                                             train=False)
 
 print("백본 EfficientNet{0} .".format(MODEL_NAME))
-model = model_build(TRAIN_MODE, MODEL_NAME, image_size=IMAGE_SIZE)
+model = model_build(MODEL_NAME, image_size=IMAGE_SIZE, pretrained=False)
 
 if CONTINUE_TRAINING is True:
     model.load_weights(CHECKPOINT_DIR + '0217_main' + '.h5')
@@ -82,10 +86,9 @@ tensorboard = tf.keras.callbacks.TensorBoard(log_dir=TENSORBOARD_DIR, write_grap
 
 
 
-model.compile(
-    optimizer=optimizer,
-    loss='mse',
-)
+model.compile(    optimizer=optimizer,
+    loss=loss.weighted_cross_entropyloss)
+
     # metrics=[precision, recall, f1score])
 
 history = model.fit(training_dataset,
@@ -94,4 +97,3 @@ history = model.fit(training_dataset,
                     validation_steps=validation_steps,
                     epochs=EPOCHS,
                     callbacks=[reduce_lr, checkpoint, tensorboard])
-

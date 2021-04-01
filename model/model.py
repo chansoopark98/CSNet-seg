@@ -89,7 +89,7 @@ def remove_dropout(model):
 
 
 
-def create_efficientNet(base_model_name, pretrained=True, IMAGE_SIZE=[2048, 1024]):
+def create_efficientNet(base_model_name, pretrained=True, IMAGE_SIZE=[1024, 2048]):
     if pretrained is False:
         weights = None
 
@@ -134,7 +134,7 @@ def SeparableConvBlock(num_channels, kernel_size, strides, name, freeze_bn=False
 
 
 
-def csnet_extra_model(base_model_name, pretrained=True, IMAGE_SIZE=[2048, 1024]):
+def csnet_extra_model(base_model_name, pretrained=True, IMAGE_SIZE=[1024, 2048]):
     base = create_efficientNet(base_model_name, pretrained, IMAGE_SIZE)
 
     layer_names = GET_EFFICIENT_NAME[base_model_name]
@@ -160,5 +160,5 @@ def csnet_extra_model(base_model_name, pretrained=True, IMAGE_SIZE=[2048, 1024])
     f_256 = UpSampling2D()(f_128)
     f_512 = UpSampling2D()(f_256)
 
-    f_512 = tf.math.argmax(f_512, axis=-1, output_type=tf.uint8)
+    # f_512 = tf.math.argmax(f_512, axis=-1, output_type=tf.float32)
     return base.input, f_512

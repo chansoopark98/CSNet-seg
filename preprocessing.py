@@ -26,19 +26,22 @@ def data_augment(image):
 
     return image
 
+import matplotlib.pyplot as plt
 
 def prepare_input(sample, convert_to_normal=True):
     img = tf.cast(sample['image_left'], dtype=tf.float32)
     # img = img - image_mean 이미지 평균
-    labels = tf.cast(sample['segmentation_label'], dtype=tf.float32)
+    labels = tf.cast(sample['segmentation_label'], dtype=tf.int32)
+
+    print(labels)
     img = preprocess_input(img, mode='torch')
 
     return (img, labels)
 
 
 
-def data_resize(sample):
-    return tf.image.resize(sample, [2048, 1024])
+def data_resize(img, labels):
+    return (tf.image.resize(img, [512, 512]), labels)
 
 
 
@@ -46,11 +49,11 @@ def pascal_prepare_dataset(dataset, batch_size, train=False):
 
     dataset = dataset.map(prepare_input, num_parallel_calls=AUTO)
     if train:
-        dataset = dataset.shuffle(100)
+        # dataset = dataset.shuffle(1000)
         dataset = dataset.repeat()
-        dataset = dataset.map(data_augment, num_parallel_calls=AUTO)
+        #dataset = dataset.map(data_augment, num_parallel_calls=AUTO)
     # dataset = dataset.cache()
-    dataset = dataset.map(data_resize, num_parallel_calls=AUTO)
+    # dataset = dataset.map(data_resize, num_parallel_calls=AUTO)
     dataset = dataset.padded_batch(batch_size)
     dataset = dataset.prefetch(AUTO)
     return dataset
@@ -59,15 +62,14 @@ def pascal_prepare_dataset(dataset, batch_size, train=False):
 # predict 할 때
 def prepare_for_prediction(file_path):
     img = tf.io.read_file(file_path)
-    img = decode_img(img, [384, 384])
+    img = decode_img(img, [1024, 2048])
     img = preprocess_input(img, mode='torch')
 
     return img
 
 
-def decode_img(img, image_size=[2048, 1024]):
+def decode_img(img, image_size=[1024, 2048]):
     # 텐서 변환
     img = tf.image.decode_jpeg(img, channels=3)
     # 이미지 리사이징
     return tf.image.resize(img, image_size)
-

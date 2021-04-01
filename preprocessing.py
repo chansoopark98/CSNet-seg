@@ -38,12 +38,11 @@ def prepare_input(sample, convert_to_normal=True):
 
 
 def data_resize(sample):
-    return tf.image.resize(sample, [512, 512])
+    return tf.image.resize(sample, [2048, 1024])
 
 
 
 def pascal_prepare_dataset(dataset, batch_size, train=False):
-    classes = 34
 
     dataset = dataset.map(prepare_input, num_parallel_calls=AUTO)
     if train:
@@ -66,7 +65,7 @@ def prepare_for_prediction(file_path):
     return img
 
 
-def decode_img(img, image_size=[384, 384]):
+def decode_img(img, image_size=[2048, 1024]):
     # 텐서 변환
     img = tf.image.decode_jpeg(img, channels=3)
     # 이미지 리사이징

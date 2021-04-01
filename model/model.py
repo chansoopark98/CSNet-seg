@@ -89,7 +89,7 @@ def remove_dropout(model):
 
 
 
-def create_efficientNet(base_model_name, pretrained=True, IMAGE_SIZE=[512, 512]):
+def create_efficientNet(base_model_name, pretrained=True, IMAGE_SIZE=[2048, 1024]):
     if pretrained is False:
         weights = None
 
@@ -134,7 +134,7 @@ def SeparableConvBlock(num_channels, kernel_size, strides, name, freeze_bn=False
 
 
 
-def csnet_extra_model(base_model_name, pretrained=True, IMAGE_SIZE=[512, 512]):
+def csnet_extra_model(base_model_name, pretrained=True, IMAGE_SIZE=[2048, 1024]):
     base = create_efficientNet(base_model_name, pretrained, IMAGE_SIZE)
 
     layer_names = GET_EFFICIENT_NAME[base_model_name]
@@ -151,7 +151,7 @@ def csnet_extra_model(base_model_name, pretrained=True, IMAGE_SIZE=[512, 512]):
     #     print("times i : ", i+1)
     #     features = build_FPN(features, 64, times=i, normal_fusion=True)
     #
-    p7 = SeparableConvBlock(num_channels=1, kernel_size=3, strides=1,
+    p7 = SeparableConvBlock(num_channels=20, kernel_size=3, strides=1,
                        name='output_classifier')(p7)
 
     f_32 = UpSampling2D()(p7)
@@ -160,5 +160,5 @@ def csnet_extra_model(base_model_name, pretrained=True, IMAGE_SIZE=[512, 512]):
     f_256 = UpSampling2D()(f_128)
     f_512 = UpSampling2D()(f_256)
 
-
+    f_512 = tf.math.argmax(f_512, axis=-1, output_type=tf.uint8)
     return base.input, f_512

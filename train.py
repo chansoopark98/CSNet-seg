@@ -40,7 +40,7 @@ os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
 
 download_config = tfds.download.DownloadConfig(
-                             manual_dir=DATASET_DIR+'/downloads')
+                             manual_dir=DATASET_DIR+'/downloads', extract_dir=DATASET_DIR+'/cityscapes')
 
 train_ds = tfds.load('cityscapes/semantic_segmentation', data_dir=DATASET_DIR, split='train', download_and_prepare_kwargs={"download_config":download_config})
 valid_ds = tfds.load('cityscapes/semantic_segmentation', data_dir=DATASET_DIR, split='validation', download_and_prepare_kwargs={"download_config":download_config})
@@ -61,7 +61,6 @@ training_dataset = pascal_prepare_dataset(train_data, BATCH_SIZE,
                                            train=True)
 validation_dataset = pascal_prepare_dataset(test_ds, BATCH_SIZE,
                                             train=False)
-
 
 print("백본 EfficientNet{0} .".format(MODEL_NAME))
 model = model_build(TRAIN_MODE, MODEL_NAME, image_size=IMAGE_SIZE)

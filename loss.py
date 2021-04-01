@@ -32,9 +32,13 @@ def convert_to_logits(y_pred):
 beta = 0.25
 
 def weighted_cross_entropyloss(y_true, y_pred):
+    y_pred = tf.argmax(y_pred, axis=3, output_type=tf.int32)
+    y_pred = tf.cast(tf.expand_dims(y_pred, axis=3), dtype=tf.float32)
     y_pred = convert_to_logits(y_pred)
+    # y_true = convert_to_logits(y_true)
     pos_weight = beta / (1 - beta)
     loss = tf.nn.weighted_cross_entropy_with_logits(logits=y_pred,
-                                                    targets=y_true,
+                                                    labels=y_true,
                                                     pos_weight=pos_weight)
+
     return tf.reduce_mean(loss)

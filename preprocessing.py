@@ -31,7 +31,7 @@ import matplotlib.pyplot as plt
 def prepare_input(sample, convert_to_normal=True):
     img = tf.cast(sample['image_left'], dtype=tf.float32)
     # img = img - image_mean 이미지 평균
-    labels = tf.cast(sample['segmentation_label'], dtype=tf.int32)
+    labels = tf.cast(sample['segmentation_label'], dtype=tf.float32)
 
     print(labels)
     img = preprocess_input(img, mode='torch')

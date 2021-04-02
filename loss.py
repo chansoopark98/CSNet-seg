@@ -3,24 +3,25 @@ from tensorflow.keras.layers import Flatten
 
 def ce_loss(y_true, y_pred):
     num_classes = 20
-    y_pred = tf.argmax(y_pred, axis=3, output_type=tf.int32)
-    y_pred = tf.cast(tf.expand_dims(y_pred, axis=3), dtype=tf.float32)
-    print(y_pred)
+    #y_pred = tf.argmax(y_pred, axis=3, output_type=tf.int32)
+    # y_pred = tf.cast(tf.expand_dims(y_pred, axis=3), dtype=tf.float32)
+    # print(y_pred)
 
-    y_true = tf.one_hot(y_true, depth=3)
+    # loss = tf.keras.losses.binary_crossentropy(y_true, y_pred, from_logits=True)
 
 
 
-    # y_pred = tf.nn.softmax(y_pred)
+    #y_pred = tf.nn.softmax(y_pred)
+
+    # y_pred = tf.nn.log_softmax(y_pred, axis=3)
+    # y_pred = tf.stop_gradient(y_pred)
     print("11")
-    # tf.nn.log_softmax(y_pred)
-
 
     # loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=y_true, logits=y_pred)
     # loss = tf.losses.binary_crossentropy(y_true=y_true, y_pred=y_pred)
     # loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=y_true, logits=y_pred)
 
-    loss = tf.nn.weighted_cross_entropy_with_logits(labels=y_true, logits=y_pred, pos_weight=2)
+    loss = tf.keras.losses.SparseCategoricalCrossentropy()(y_true=y_true, y_pred=y_pred)
 
     return loss
 

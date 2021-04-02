@@ -2,9 +2,9 @@ import tensorflow_datasets as tfds
 import tensorflow as tf
 from model.model_builder import model_build
 from preprocessing import pascal_prepare_dataset
-
+from sklearn.metrics import confusion_matrix
 from tqdm import tqdm
-
+import numpy as np
 import argparse
 import os
 
@@ -36,7 +36,7 @@ test_data = tfds.load('cityscapes/semantic_segmentation', data_dir=DATASET_DIR, 
 
 number_test = test_data.reduce(0, lambda x, _: x + 1).numpy()
 print("테스트 데이터 개수:", number_test)
-CLASSES_NUM = 20
+NUM_CLASSES = 20
 with open('./cityscape_labels') as f:
     CLASSES = f.read().splitlines()
 
@@ -54,27 +54,30 @@ test_steps = number_test // BATCH_SIZE + 1
 print("테스트 배치 개수 : ", test_steps)
 
 import sklearn.metrics
-
+conf_mat_total = np.zeros((NUM_CLASSES, NUM_CLASSES))
 import matplotlib.pyplot as plt
 for x, y in tqdm(validation_dataset, total=test_steps):
     pred = model.predict_on_batch(x)
 
-    pred = tf.argmax(pred, axis=3)
-    y = tf.cast(y, dtype=tf.int32)
-    y_test = tf.squeeze(y)
-    pred = tf.squeeze(pred)
+    pred = tf.argmax(pred, axis=3) # (batch, 1024, 2048)
+    pred = pred.numpy()
+    pred = np.reshape(pred, (1024, 2048))
+    y = np.reshape(y, (1024, 2048))
+    pred = pred[y >= 0]
+    y = y[y >=0 ]
 
     # test = tf.math.confusion_matrix(y_test, pred, num_classes=20)
-    test = tf.metrics.MeanIoU(20)(y_test, pred)
-    print(test)
-
-    plt.imshow(pred[0])
-    plt.show()
+    conf_mat = confusion_matrix(y, pred, labels=list(range(NUM_CLASSES)))
+    conf_mat_total += conf_mat
 
 
 
+    ious = np.zeros((NUM_CLASSES,1))
+    for l in range(NUM_CLASSES):
+        ious[l] = conf_mat_total[l,l] / (np.sum(conf_mat_total[l,:]) +
+                                         np.sum(conf_mat_total[:,l]) -
+                                         conf_mat_total[l,l])
 
-
-
-
+    print(ious)
+    print('Mean IOU = {}\n'.format(np.mean(ious)))
 

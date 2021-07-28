@@ -1,7 +1,8 @@
 # from efficientnet_v2 import *
-# from model.efficientnet_v2 import *
+from model.efficientnet_v2 import *
 import tensorflow as tf
-from resnet101 import ResNet
+# from resnet101 import ResNet
+from model.resnet101 import *
 from tensorflow.keras import layers
 
 activation = 'relu'

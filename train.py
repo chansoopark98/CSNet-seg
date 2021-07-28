@@ -1,20 +1,18 @@
 from tensorflow.keras.callbacks import ReduceLROnPlateau, ModelCheckpoint
 from tensorflow.keras.mixed_precision import experimental as mixed_precision
-from callbacks import Scalar_LR
+from utils.callbacks import Scalar_LR
 from utils.load_datasets import CityScapes
-from metrics import MeanIOU
+from utils.metrics import MeanIOU
 from model.model_builder import seg_model_build
-from model.seg_loss import Seg_loss
+from model.loss import focal_loss
 import argparse
 import time
 import os
 import tensorflow as tf
-from adamW import LearningRateScheduler, poly_decay
+from utils.adamW import LearningRateScheduler, poly_decay
 
-#LD_PRELOAD=$CONDA_PREFIX/lib/libtcmalloc.so python seg_train.py
-#LD_PRELOAD=/path/to/libtcmalloc_minimal.so.4 python seg_train.py
 tf.keras.backend.clear_session()
-#LD_PRELOAD=/usr/lib/libtcmalloc.so.4 python seg_train.py
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=16)
 parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=200)
@@ -30,7 +28,7 @@ parser.add_argument("--load_weight",  type=bool,  help="가중치 로드", defau
 parser.add_argument("--mixed_precision",  type=bool,  help="mixed_precision 사용", default=True)
 parser.add_argument("--distribution_mode",  type=bool,  help="분산 학습 모드 설정 mirror or multi", default='mirror')
 
-args = parser.parse_args()# dataset = dataset.map(cityScapes_resize, num_parallel_calls=AUTO)
+args = parser.parse_args()
 WEIGHT_DECAY = args.weight_decay
 BATCH_SIZE = args.batch_size
 EPOCHS = args.epoch
@@ -58,57 +56,42 @@ if DISTRIBUTION_MODE == 'multi':
         tf.distribute.experimental.CollectiveCommunication.NCCL)
 
 else:
-    mirrored_strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
-    # mirrored_strategy = tf.distribute.MirroredStrategy()
+    # mirrored_strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
+    mirrored_strategy = tf.distribute.MirroredStrategy()
 print("Number of devices: {}".format(mirrored_strategy.num_replicas_in_sync))
+
+dataset_config = CityScapes(DATASET_DIR, IMAGE_SIZE, BATCH_SIZE)
+
+steps_per_epoch = dataset_config.number_train // BATCH_SIZE
+validation_steps = dataset_config.number_valid // BATCH_SIZE
+print("학습 배치 개수:", steps_per_epoch)
+print("검증 배치 개수:", validation_steps)
+
+reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.9, patience=3, min_lr=1e-5, verbose=1)
+
+checkpoint_val_loss = ModelCheckpoint(CHECKPOINT_DIR + '_' + SAVE_MODEL_NAME + '_best_loss.h5',
+                                      monitor='val_loss', save_best_only=True, save_weights_only=True, verbose=1)
+checkpoint_val_miou = ModelCheckpoint(CHECKPOINT_DIR + '_' + SAVE_MODEL_NAME + '_best_miou.h5',
+                                      monitor='val_mean_iou', save_best_only=True, save_weights_only=True,
+                                      verbose=1, mode='max')
+testCallBack = Scalar_LR('test', TENSORBOARD_DIR)
+tensorboard = tf.keras.callbacks.TensorBoard(log_dir=TENSORBOARD_DIR, write_graph=True, write_images=True)
+
+poly_lr = poly_decay(base_lr, EPOCHS, False)
+lr_scheduler = LearningRateScheduler(poly_lr, BATCH_SIZE, False, steps_per_epoch, verbose=1)
+
+optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
+if MIXED_PRECISION:
+    optimizer = mixed_precision.LossScaleOptimizer(optimizer, loss_scale='dynamic')  # tf2.4.1 이전
+
+mIoU = MeanIOU(20)
+
+callback = [checkpoint_val_loss, checkpoint_val_miou, tensorboard, testCallBack, lr_scheduler]
 
 with mirrored_strategy.scope():
 
 
-    # Create Dataset
-    dataset_config = CityScapes(DATASET_DIR, IMAGE_SIZE, BATCH_SIZE)
 
-    steps_per_epoch = dataset_config.number_train // BATCH_SIZE
-    validation_steps = dataset_config.number_valid // BATCH_SIZE
-    print("학습 배치 개수:", steps_per_epoch)
-    print("검증 배치 개수:", validation_steps)
-
-    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.9, patience=3, min_lr=1e-5, verbose=1)
-
-    checkpoint_val_loss = ModelCheckpoint(CHECKPOINT_DIR + '_' + SAVE_MODEL_NAME + '_best_loss.h5',
-                                          monitor='val_loss', save_best_only=True, save_weights_only=True, verbose=1)
-    checkpoint_val_miou = ModelCheckpoint(CHECKPOINT_DIR + '_' + SAVE_MODEL_NAME + '_best_miou.h5',
-                                          monitor='val_mean_iou', save_best_only=True, save_weights_only=True,
-                                          verbose=1, mode='max')
-    testCallBack = Scalar_LR('test', TENSORBOARD_DIR)
-    tensorboard = tf.keras.callbacks.TensorBoard(log_dir=TENSORBOARD_DIR, write_graph=True, write_images=True)
-    # polyDecay = tf.keras.optimizers.schedules.PolynomialDecay(initial_learning_rate=base_lr,
-    #                                                           decay_steps=EPOCHS,
-    #                                                           end_learning_rate=base_lr*0.1, power=0.9)
-    #
-    # lr_scheduler = tf.keras.callbacks.LearningRateScheduler(polyDecay)
-
-    # AdamW = extend_with_decoupled_weight_decay(tf.keras.optimizers.Adam)
-    # optimizer = AdamW(weight_decay=WEIGHT_DECAY, learning_rate=base_lr)
-
-    poly_lr = poly_decay(base_lr, EPOCHS, False)
-    lr_scheduler = LearningRateScheduler(poly_lr, BATCH_SIZE, False, steps_per_epoch, verbose=1)
-
-    # total_iterations = dataset_config.number_train * EPOCHS // args.batch_size
-    # optimizer = AdamW(learning_rate=base_lr, batch_size=BATCH_SIZE,
-    #       total_iterations=total_iterations),
-
-    optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
-    #
-    # optimizer = tf.keras.optimizers.Nadam(learning_rate=base_lr)
-
-    if MIXED_PRECISION:
-        optimizer = mixed_precision.LossScaleOptimizer(optimizer, loss_scale='dynamic')  # tf2.4.1 이전
-
-    callback = [checkpoint_val_loss, checkpoint_val_miou, tensorboard, testCallBack, lr_scheduler]
-
-    miou = MeanIOU(20)
-    loss = Seg_loss(BATCH_SIZE)
     model = seg_model_build(image_size=IMAGE_SIZE)
 
 
@@ -121,8 +104,8 @@ with mirrored_strategy.scope():
 
     model.compile(
         optimizer=optimizer,
-        loss=loss.total_loss,
-        metrics=[miou])
+        loss=focal_loss,
+        metrics=[mIoU])
 
     if LOAD_WEIGHT:
         weight_name = 'city_0726_best_loss'
@@ -137,5 +120,4 @@ with mirrored_strategy.scope():
             epochs=EPOCHS,
             callbacks=callback)
 
-    model.save('./checkpoints/save_model.h5', True, True, 'h5')
 

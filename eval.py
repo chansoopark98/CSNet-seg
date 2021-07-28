@@ -1,9 +1,5 @@
-from tensorflow.keras.callbacks import ReduceLROnPlateau, ModelCheckpoint
 from tensorflow.keras.mixed_precision import experimental as mixed_precision
-from callbacks import Scalar_LR
-from utils.load_datasets import CityScapes
 from model.model_builder import seg_model_build
-from model.seg_loss import Seg_loss
 import argparse
 import time
 import os

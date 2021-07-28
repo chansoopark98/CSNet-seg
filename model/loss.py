@@ -160,6 +160,8 @@ def focal_loss(y_true, y_pred):
     probs = tf.gather(probs, y_true, axis=-1, batch_dims=y_true_rank)
 
     focal_modulation = (1 - probs) ** gamma
-    loss = focal_modulation * xent_loss
+    fl_loss = focal_modulation * xent_loss
+
+    loss = tf.nn.compute_average_loss(fl_loss)
 
     return loss

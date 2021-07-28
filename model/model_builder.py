@@ -1,10 +1,10 @@
-import tensorflow as tf
 from tensorflow import keras
-from model.model import csnet_extra_model
+from model.model import csnet_seg_model
 
-# train.py에서 priors를 변경하면 여기도 수정해야함
-def model_build(base_model_name, pretrained=True, image_size=[1024, 2048]):
 
-    inputs, output = csnet_extra_model(base_model_name, pretrained, image_size)
-    model = keras.Model(inputs, outputs=output)
+
+def seg_model_build(image_size):
+    input, output =  csnet_seg_model(weights=None, input_tensor=None, input_shape=(image_size[0], image_size[1], 3), classes=20, OS=16)
+    model = keras.Model(input, output)
+    model.summary()
     return model

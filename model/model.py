@@ -1,4 +1,5 @@
-from efficientnet_v2 import *
+# from efficientnet_v2 import *
+# from model.efficientnet_v2 import *
 import tensorflow as tf
 from resnet101 import ResNet
 from tensorflow.keras import layers

@@ -5,13 +5,13 @@ import time
 import os
 import tensorflow as tf
 from tqdm import tqdm
-from preprocessing import cityScapes
+from utils.load_datasets import CityScapes
 import tensorflow_datasets as tfds
 
 tf.keras.backend.clear_session()
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=4)
+parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=16)
 parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=100)
 parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.001)
 parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.0005)
@@ -38,7 +38,7 @@ CHECKPOINT_DIR = args.checkpoint_dir
 TENSORBOARD_DIR = args.tensorboard_dir
 MODEL_NAME = args.backbone_model
 TRAIN_MODE = args.train_dataset
-IMAGE_SIZE = (1024, 2048)
+IMAGE_SIZE = (512, 1024)
 USE_WEIGHT_DECAY = args.use_weightDecay
 LOAD_WEIGHT = args.load_weight
 MIXED_PRECISION = args.mixed_precision
@@ -54,21 +54,12 @@ os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
 # Create Dataset
 # dataset_config = CityScapes(DATASET_DIR, IMAGE_SIZE, BATCH_SIZE)
+dataset = CityScapes(DATASET_DIR, IMAGE_SIZE, BATCH_SIZE, 'valid')
 
-# Set loss function
+test_steps = dataset.number_valid // BATCH_SIZE
 
+test_set = dataset.get_testData(dataset.valid_data)
 
-print("백본 EfficientNet{0} .".format(MODEL_NAME))
-
-test_data = tfds.load('cityscapes/semantic_segmentation', data_dir=DATASET_DIR, split='validation')
-test_data_number_test = test_data.reduce(0, lambda x, _: x + 1).numpy()
-print("검증 데이터 개수:", test_data_number_test)
-
-test_steps = test_data_number_test // BATCH_SIZE
-
-
-
-test_datasets = cityScapes(test_data, IMAGE_SIZE, BATCH_SIZE, train=False)
 
 # if DISTRIBUTION_MODE == 'multi':
 #     mirrored_strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy(
@@ -82,7 +73,7 @@ test_datasets = cityScapes(test_data, IMAGE_SIZE, BATCH_SIZE, train=False)
 
 model = seg_model_build(image_size=IMAGE_SIZE)
 
-weight_name = 'city_0727_best_miou'
+weight_name = '_0729_best_miou'
 model.load_weights(CHECKPOINT_DIR + weight_name + '.h5')
 
 model.summary()
@@ -92,27 +83,22 @@ import matplotlib.pyplot as plt
 
 class MeanIOU(tf.keras.metrics.MeanIoU):
     def update_state(self, y_true, y_pred, sample_weight=None):
-        y_true = tf.squeeze(y_true, -1)
-        y_pred = tf.argmax(y_pred, axis=-1)
+        # y_true = tf.squeeze(y_true, -1)
+        # y_pred = tf.argmax(y_pred, axis=-1)
 
         return super().update_state(y_true, y_pred, sample_weight)
 
 metric = MeanIOU(20)
 buffer = 0
-for x, y in tqdm(test_datasets, total=test_steps):
+for x, y in tqdm(test_set, total=test_steps):
     pred = model.predict_on_batch(x)#pred = tf.nn.softmax(pred)
     pred = tf.argmax(pred, axis=-1)
-    # for i in range(len(pred)):
-    #     metric.update_state(y[i], pred[i])
-    #     buffer += metric.result().numpy()
-
-
     for i in range(len(pred)):
+        metric.update_state(y[i], pred[i])
+        buffer += metric.result().numpy()
 
-        plt.imshow(pred[i])
-        plt.show()
 
-print("miou", buffer/test_data_number_test)
+print("miou", buffer/dataset.number_valid)
 
 
 

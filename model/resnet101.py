@@ -6,12 +6,6 @@ backend = tf.keras.backend
 
 class ResNet(object):
     def __init__(self, version='ResNet50', dilation=None, **kwargs):
-        """
-       The implementation of ResNet based on Tensorflow.
-       :param version: 'ResNet50', 'ResNet101' or 'ResNet152'
-       :param dilation: Whether to use dilation strategy
-       :param kwargs: other parameters.
-       """
         super(ResNet, self).__init__(**kwargs)
         params = {'ResNet50': [2, 3, 5, 2],
                   'ResNet101': [2, 3, 22, 2],
@@ -27,17 +21,6 @@ class ResNet(object):
         assert len(self.dilation) == 2
 
     def _identity_block(self, input_tensor, kernel_size, filters, stage, block, dilation=1):
-        """The identity block is the block that has no conv layer at shortcut.
-        # Arguments
-            input_tensor: input tensor
-            kernel_size: default 3, the kernel size of
-                middle conv layer at main path
-            filters: list of integers, the filters of 3 conv layer at main path
-            stage: integer, current stage label, used for generating layer names
-            block: 'a','b'..., current block label, used for generating layer names
-        # Returns
-            Output tensor for the block.
-        """
         filters1, filters2, filters3 = filters
         if backend.image_data_format() == 'channels_last':
             bn_axis = 3
@@ -81,21 +64,6 @@ class ResNet(object):
                     block,
                     strides=(2, 2),
                     dilation=1):
-        """A block that has a conv layer at shortcut.
-        # Arguments
-            input_tensor: input tensor
-            kernel_size: default 3, the kernel size of
-                middle conv layer at main path
-            filters: list of integers, the filters of 3 conv layer at main path
-            stage: integer, current stage label, used for generating layer names
-            block: 'a','b'..., current block label, used for generating layer names
-            strides: Strides for the first conv layer in the block.
-        # Returns
-            Output tensor for the block.
-        Note that from stage 3,
-        the first conv layer at main path is with strides=(2, 2)
-        And the shortcut should have strides=(2, 2) as well
-        """
         filters1, filters2, filters3 = filters
         if backend.image_data_format() == 'channels_last':
             bn_axis = 3
@@ -135,13 +103,6 @@ class ResNet(object):
         return x
 
     def __call__(self, inputs, output_stages='c5', **kwargs):
-        """
-        call for ResNet50, ResNet101 or ResNet152.
-        :param inputs: a 4-D tensor.
-        :param output_stages: str or a list of str containing the output stages.
-        :param kwargs: other parameters.
-        :return: the output of different stages.
-        """
         if backend.image_data_format() == 'channels_last':
             bn_axis = 3
         else:

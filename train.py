@@ -58,42 +58,44 @@ if DISTRIBUTION_MODE == 'multi':
 else:
     # mirrored_strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
     mirrored_strategy = tf.distribute.MirroredStrategy()
-print("Number of devices: {}".format(mirrored_strategy.num_replicas_in_sync))
 
-dataset_config = CityScapes(DATASET_DIR, IMAGE_SIZE, BATCH_SIZE)
-
-steps_per_epoch = dataset_config.number_train // BATCH_SIZE
-validation_steps = dataset_config.number_valid // BATCH_SIZE
-print("학습 배치 개수:", steps_per_epoch)
-print("검증 배치 개수:", validation_steps)
-
-reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.9, patience=3, min_lr=1e-5, verbose=1)
-
-checkpoint_val_loss = ModelCheckpoint(CHECKPOINT_DIR + '_' + SAVE_MODEL_NAME + '_best_loss.h5',
-                                      monitor='val_loss', save_best_only=True, save_weights_only=True, verbose=1)
-checkpoint_val_miou = ModelCheckpoint(CHECKPOINT_DIR + '_' + SAVE_MODEL_NAME + '_best_miou.h5',
-                                      monitor='val_mean_iou', save_best_only=True, save_weights_only=True,
-                                      verbose=1, mode='max')
-testCallBack = Scalar_LR('test', TENSORBOARD_DIR)
-tensorboard = tf.keras.callbacks.TensorBoard(log_dir=TENSORBOARD_DIR, write_graph=True, write_images=True)
-
-poly_lr = poly_decay(base_lr, EPOCHS, False)
-lr_scheduler = LearningRateScheduler(poly_lr, BATCH_SIZE, False, steps_per_epoch, verbose=1)
-
-optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
-if MIXED_PRECISION:
-    optimizer = mixed_precision.LossScaleOptimizer(optimizer, loss_scale='dynamic')  # tf2.4.1 이전
-
-mIoU = MeanIOU(20)
-
-callback = [checkpoint_val_loss, checkpoint_val_miou, tensorboard, testCallBack, lr_scheduler]
 
 with mirrored_strategy.scope():
+    print("Number of devices: {}".format(mirrored_strategy.num_replicas_in_sync))
 
+    train_dataset_config = CityScapes(DATASET_DIR, IMAGE_SIZE, BATCH_SIZE, mode='train')
+    valid_dataset_config = CityScapes(DATASET_DIR, IMAGE_SIZE, BATCH_SIZE, mode='validation')
 
+    train_data = train_dataset_config.get_trainData(train_dataset_config.train_data)
+    valid_data = valid_dataset_config.get_validData(valid_dataset_config.valid_data)
+
+    steps_per_epoch = train_dataset_config.number_train // BATCH_SIZE
+    validation_steps = valid_dataset_config.number_valid // BATCH_SIZE
+    print("학습 배치 개수:", steps_per_epoch)
+    print("검증 배치 개수:", validation_steps)
+
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.9, patience=3, min_lr=1e-5, verbose=1)
+
+    checkpoint_val_loss = ModelCheckpoint(CHECKPOINT_DIR + '_' + SAVE_MODEL_NAME + '_best_loss.h5',
+                                          monitor='val_loss', save_best_only=True, save_weights_only=True, verbose=1)
+    checkpoint_val_miou = ModelCheckpoint(CHECKPOINT_DIR + '_' + SAVE_MODEL_NAME + '_best_miou.h5',
+                                          monitor='val_mean_iou', save_best_only=True, save_weights_only=True,
+                                          verbose=1, mode='max')
+    testCallBack = Scalar_LR('test', TENSORBOARD_DIR)
+    tensorboard = tf.keras.callbacks.TensorBoard(log_dir=TENSORBOARD_DIR, write_graph=True, write_images=True)
+
+    poly_lr = poly_decay(base_lr, EPOCHS, warmup=False)
+    lr_scheduler = LearningRateScheduler(poly_lr, BATCH_SIZE, False, steps_per_epoch, verbose=1)
+
+    optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
+    if MIXED_PRECISION:
+        optimizer = mixed_precision.LossScaleOptimizer(optimizer, loss_scale='dynamic')  # tf2.4.1 이전
+
+    mIoU = MeanIOU(20)
+
+    callback = [checkpoint_val_loss, checkpoint_val_miou, tensorboard, testCallBack, lr_scheduler]
 
     model = seg_model_build(image_size=IMAGE_SIZE)
-
 
     if USE_WEIGHT_DECAY:
         regularizer = tf.keras.regularizers.l2(WEIGHT_DECAY / 2)
@@ -113,8 +115,8 @@ with mirrored_strategy.scope():
 
     model.summary()
 
-    history = model.fit(dataset_config.get_trainData,
-            validation_data=dataset_config.get_validData(),
+    history = model.fit(train_data,
+            validation_data=valid_data,
             steps_per_epoch=steps_per_epoch,
             validation_steps=validation_steps,
             epochs=EPOCHS,

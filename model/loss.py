@@ -145,15 +145,14 @@ class Seg_loss:
 
 
 def focal_loss(y_true, y_pred):
-    gamma = 2.0
+    gamma = 1.5
     y_true = tf.squeeze(y_true, -1)
 
-    logits = y_pred
     probs = tf.nn.softmax(y_pred, axis=-1)
 
     xent_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
         labels=y_true,
-        logits=logits,
+        logits=y_pred,
     )
 
     y_true_rank = y_true.shape.rank
@@ -162,6 +161,7 @@ def focal_loss(y_true, y_pred):
     focal_modulation = (1 - probs) ** gamma
     fl_loss = focal_modulation * xent_loss
 
-    loss = tf.nn.compute_average_loss(fl_loss)
+    # loss = tf.nn.compute_average_loss(fl_loss)
+    loss = tf.reduce_mean(fl_loss)
 
     return loss

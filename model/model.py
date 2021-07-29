@@ -66,10 +66,10 @@ class Concatenate(tf.keras.layers.Concatenate):
 
 
 def csnet_seg_model(weights='pascal_voc', input_tensor=None, input_shape=(512, 1024, 3), classes=20, OS=16):
-    input_tensor = tf.keras.Input(shape=(512, 1024, 3))
+    input_tensor = tf.keras.Input(shape=input_shape)
     encoder = ResNet('ResNet101', [1, 2])
     c2, c5 = encoder(input_tensor, ['c2', 'c5'])
-    aspp_size = (512 // 16, 1024 // 16)
+    aspp_size = (input_shape[0] // 16, input_shape[1] // 16)
 
     # """ for resnet101 """
     # base = resnet101.ResNet101(include_top=False, input_shape=input_shape, weights='imagenet')

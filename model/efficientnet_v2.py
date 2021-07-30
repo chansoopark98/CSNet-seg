@@ -21,7 +21,7 @@ BATCH_NORM_DECAY = 0.9
 BATCH_NORM_EPSILON = 0.001
 CONV_KERNEL_INITIALIZER = keras.initializers.VarianceScaling(scale=2.0, mode="fan_out", distribution="truncated_normal")
 # CONV_KERNEL_INITIALIZER = 'glorot_uniform'
-global_activation = 'relu'
+global_activation = 'swish'
 
 BLOCK_CONFIGS = {
     "b0": {  # width 1.0, depth 1.0
@@ -73,7 +73,7 @@ BLOCK_CONFIGS = {
         "expands": [1, 4, 4, 4, 6, 6, 6],
         "out_channels": [24, 48, 80, 160, 176, 304, 512],
         "depthes": [3, 5, 5, 7, 14, 18, 5],
-        "strides": [1, 2, 2, 2, 1, 2, 1],
+        "strides": [1, 2, 2, 2, 1, 1, 1],
         "use_ses": [0, 0, 0, 1, 1, 1, 1],
     },
     "l": {  # width 2.0, depth 3.1

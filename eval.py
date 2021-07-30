@@ -11,7 +11,7 @@ import tensorflow_datasets as tfds
 tf.keras.backend.clear_session()
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=16)
+parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=8)
 parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=100)
 parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.001)
 parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.0005)
@@ -38,7 +38,7 @@ CHECKPOINT_DIR = args.checkpoint_dir
 TENSORBOARD_DIR = args.tensorboard_dir
 MODEL_NAME = args.backbone_model
 TRAIN_MODE = args.train_dataset
-IMAGE_SIZE = (512, 1024)
+IMAGE_SIZE = (1024, 2048)
 USE_WEIGHT_DECAY = args.use_weightDecay
 LOAD_WEIGHT = args.load_weight
 MIXED_PRECISION = args.mixed_precision
@@ -73,7 +73,7 @@ test_set = dataset.get_testData(dataset.valid_data)
 
 model = seg_model_build(image_size=IMAGE_SIZE)
 
-weight_name = '_0729_best_miou'
+weight_name = '_0730_best_miou'
 model.load_weights(CHECKPOINT_DIR + weight_name + '.h5')
 
 model.summary()
@@ -86,6 +86,11 @@ class MeanIOU(tf.keras.metrics.MeanIoU):
         # y_true = tf.squeeze(y_true, -1)
         # y_pred = tf.argmax(y_pred, axis=-1)
 
+        # mask = tf.where(y_true>0, True, False)
+        # y_true = tf.boolean_mask(y_true, mask)
+        # y_pred = tf.expand_dims(y_pred, axis=-1)
+        # y_pred = tf.boolean_mask(y_pred, mask)
+
         return super().update_state(y_true, y_pred, sample_weight)
 
 metric = MeanIOU(20)
@@ -97,8 +102,11 @@ for x, y in tqdm(test_set, total=test_steps):
         metric.update_state(y[i], pred[i])
         buffer += metric.result().numpy()
 
+        # plt.imshow(pred[i])
+        # plt.show()
 
-print("miou", buffer/dataset.number_valid)
+
+print("CityScapes validation 1024x2048 mIoU :  ", buffer/dataset.number_valid)
 
 
 

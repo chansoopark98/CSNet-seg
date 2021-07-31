@@ -53,7 +53,13 @@ class CityScapes:
         img = tf.cast(img, dtype=tf.float32)
         labels = tf.cast(labels, dtype=tf.int64)
 
-        img = preprocess_input(img, mode='tf')
+        """ Test for 0730 """
+        # img /= 255
+        # image_mean = (0.28689554, 0.32513303, 0.28389177)
+        # image_std = (0.18696375, 0.19017339, 0.18720214)
+        # img = (img - image_mean) / image_std  # Cityscapes mean, std 실험
+        img = preprocess_input(img, mode='torch')
+        # img = preprocess_input(img, mode='tf')
 
         return (img, labels)
 
@@ -70,7 +76,14 @@ class CityScapes:
         img = tf.cast(img, dtype=tf.float32)
         labels = tf.cast(labels, dtype=tf.int64)
 
-        img = preprocess_input(img, mode='tf')
+        """ Test for 0730 """
+        # img /= 255
+        # image_mean = (0.28689554, 0.32513303, 0.28389177)
+        # image_std = (0.18696375, 0.19017339, 0.18720214)
+        # img = (img - image_mean) / image_std  # Cityscapes mean, std 실험
+
+        """ mIoU 70.8 """
+        img = preprocess_input(img, mode='torch')
 
         return (img, labels)
 

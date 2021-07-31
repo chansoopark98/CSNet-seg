@@ -11,7 +11,7 @@ import os
 import warnings
 
 
-activation = 'relu'
+activation = 'swish'
 aspp_size = (32, 64)
 
 class GlobalAveragePooling2D(tf.keras.layers.GlobalAveragePooling2D):
@@ -125,7 +125,7 @@ def csnet_seg_model(weights='pascal_voc', input_tensor=None, input_shape=(512, 1
 
     x = Concatenate(out_size=aspp_size)([x, c2])
     x = _conv_bn_relu(x, 256, 3, 1)
-    x = layers.Dropout(rate=0.5)(x)
+    x = layers.Dropout(rate=0.3)(x)
 
     x = _conv_bn_relu(x, 256, 3, 1)
     x = layers.Dropout(rate=0.1)(x)
@@ -199,7 +199,7 @@ def csnet_seg_model(weights='pascal_voc', input_tensor=None, input_shape=(512, 1
 def _conv_bn_relu(x, filters, kernel_size, strides=1):
     x = layers.Conv2D(filters, kernel_size, strides=strides, padding='same')(x)
     x = layers.BatchNormalization()(x)
-    x = layers.ReLU()(x)
+    x = layers.Activation(activation)(x)
     return x
 
 

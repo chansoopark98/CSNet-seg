@@ -85,7 +85,7 @@ with mirrored_strategy.scope():
     testCallBack = Scalar_LR('test', TENSORBOARD_DIR)
     tensorboard = tf.keras.callbacks.TensorBoard(log_dir=TENSORBOARD_DIR, write_graph=True, write_images=True)
 
-    poly_lr = poly_decay(base_lr, EPOCHS, warmup=False)
+    poly_lr = poly_decay(base_lr, EPOCHS, warmup=True)
     lr_scheduler = LearningRateScheduler(poly_lr, BATCH_SIZE, False, steps_per_epoch, verbose=1)
 
     optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)

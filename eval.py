@@ -73,7 +73,7 @@ test_set = dataset.get_testData(dataset.valid_data)
 
 model = seg_model_build(image_size=IMAGE_SIZE)
 
-weight_name = '_0730_best_miou'
+weight_name = '_0731_best_miou'
 model.load_weights(CHECKPOINT_DIR + weight_name + '.h5')
 
 model.summary()
@@ -102,8 +102,8 @@ for x, y in tqdm(test_set, total=test_steps):
         metric.update_state(y[i], pred[i])
         buffer += metric.result().numpy()
 
-        # plt.imshow(pred[i])
-        # plt.show()
+        plt.imshow(pred[i])
+        plt.show()
 
 
 print("CityScapes validation 1024x2048 mIoU :  ", buffer/dataset.number_valid)

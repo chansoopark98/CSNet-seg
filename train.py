@@ -12,6 +12,7 @@ import tensorflow as tf
 from utils.adamW import LearningRateScheduler, poly_decay
 import tensorflow_addons as tfa
 
+
 tf.keras.backend.clear_session()
 
 parser = argparse.ArgumentParser()
@@ -85,11 +86,18 @@ with mirrored_strategy.scope():
     testCallBack = Scalar_LR('test', TENSORBOARD_DIR)
     tensorboard = tf.keras.callbacks.TensorBoard(log_dir=TENSORBOARD_DIR, write_graph=True, write_images=True)
 
+    # polyDecay = tf.keras.optimizers.schedules.PolynomialDecay(initial_learning_rate=base_lr,
+    #                                                           decay_steps=EPOCHS,
+    #                                                           end_learning_rate=0.0001, power=1.0)
+    # lr_scheduler = tf.keras.callbacks.LearningRateScheduler(polyDecay)
+
     poly_lr = poly_decay(base_lr, EPOCHS, warmup=True)
     lr_scheduler = LearningRateScheduler(poly_lr, BATCH_SIZE, False, steps_per_epoch, verbose=1)
 
-    optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
     #
+    # optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
+    optimizer = tf.keras.optimizers.Nadam(learning_rate=base_lr)
+
     # adamW = tfa.optimizers.extend_with_decoupled_weight_decay(tf.keras.optimizers.Adam)
     # optimizer = adamW(weight_decay=WEIGHT_DECAY, learning_rate=base_lr)
 

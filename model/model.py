@@ -6,7 +6,7 @@ from tensorflow.keras.layers import MaxPooling2D,SeparableConv2D, UpSampling2D
 from functools import reduce
 
 
-BATCH_NORM_DECAY = 0.9
+BATCH_NORM_DECAY = 0.99
 BATCH_NORM_EPSILON = 0.001
 activation = 'swish'
 aspp_size = (32, 64)
@@ -69,59 +69,36 @@ class Concatenate(tf.keras.layers.Concatenate):
 
 
 
-def csnet_seg_model(weights='pascal_voc', input_tensor=None, input_shape=(512, 1024, 3), classes=20, OS=16):
+def csnet_seg_model(model='CSNet-seg', backbone='efficientV2-s', input_shape=(512, 1024, 3), classes=20, OS=16):
     global aspp_size
     bn_axis = 1 if K.image_data_format() == "channels_first" else -1
-    """custum resnet101"""
-    # input_tensor = tf.keras.Input(shape=input_shape)
-    # encoder = ResNet('ResNet101', [1, 2])
-    # c2, c5 = encoder(input_tensor, ['c2', 'c5'])
-    aspp_size = (input_shape[0] // 16, input_shape[1] // 16)
+    aspp_size = (input_shape[0] // OS, input_shape[1] // OS)
 
-    # """ for resnet101 """
-    # base = resnet101.ResNet101(include_top=False, input_shape=input_shape, weights='imagenet')
-    # base = ResNet101(include_top=False, input_shape=input_shape, weights='imagenet')
-    # base.summary()
-    divide_output_stride = 4
-    # # x = base.get_layer('conv4_block23_out').output
-    # x = base.get_layer('conv5_block3_out').output
-    # # skip1 = base.get_layer('conv2_block3_out').output
-    # skip1 = base.get_layer('conv2_block3_out').output
-    # # conv5_block3_out 16, 32, 2048
-    # # conv3_block4_out 64, 128, 512
+    if backbone == 'ResNet101':
+        input_tensor = tf.keras.Input(shape=input_shape)
+        encoder = ResNet('ResNet101', [1, 2])
+        c2, c5 = encoder(input_tensor, ['c2', 'c5'])
 
-    """ for EfficientNetV2S """
+    elif backbone == 'efficientV2-s':
+        base = EfficientNetV2S(input_shape=input_shape, classifier_activation=None, survivals=None)
+        # base.load_weights('./checkpoints/efficientnetv2-s-21k-ft1k.h5', by_name=True)
+        c5 = base.get_layer('add_34').output  # 32x64 256 or get_layer('post_swish') => 확장된 채널 1280
+        c4 = base.get_layer('add_7').output  # 64x128 64
+        c2 = base.get_layer('add_4').output  # 128x256 48
 
-
-    # efficientnetv2 small
-    divide_output_stride = 4
-    base = EfficientNetV2S(input_shape=input_shape, classifier_activation=None, survivals=None)
-    base.load_weights('./checkpoints/efficientnetv2-s-21k-ft1k.h5', by_name=True)
-    # base = EfficientNetV2M(input_shape=input_shape, classifier_activation=None, survivals=None)
-    # base.load_weights('./checkpoints/efficientnetv2-m-21k-ft1k.h5', by_name=True)
-    base.summary()
-
-
-    # x = base.get_layer('add_34').output # 32x64
-    # c5 = base.get_layer('post_swish').output # 32x64 1280
-    c5 = base.get_layer('add_34').output # 32x64 256
-    c4 = base.get_layer('add_7').output # 64x128 64
-    c2 = base.get_layer('add_4').output # 128x256 48
-
-
-    # efficientnetv2 medium
-    # base = EfficientNetV2('m', input_shape=input_shape, classifier_activation=None, first_strides=1)
-    # base.load_weights('checkpoints/efficientnetv2-m-21k-ft1k.h5', by_name=True)
-    # x = base.get_layer('add_50').output # 32x64
-    # skip1 = base.get_layer('add_9').output # 128x256
+    elif backbone == 'efficientV2-m':
+        base = EfficientNetV2('m', input_shape=input_shape, classifier_activation=None, first_strides=1)
+        base.load_weights('checkpoints/efficientnetv2-m-21k-ft1k.h5', by_name=True)
+        c5 = base.get_layer('add_50').output # 32x64
+        c2 = base.get_layer('add_9').output # 128x256
 
 
 
     "proposed method"
     features = [c2, c4, c5]
-    features = build_fpn(features=features, num_channels=256, id=0, resize=False,bn_trainable=True)
-    features = build_fpn(features=features, num_channels=256, id=1, resize=False,bn_trainable=True)
-    features = build_fpn(features=features, num_channels=256, id=2, resize=False,bn_trainable=True)
+    features = build_fpn(features=features, num_channels=256, id=0, resize=False, bn_trainable=True)
+    features = build_fpn(features=features, num_channels=256, id=1, resize=False, bn_trainable=True)
+    features = build_fpn(features=features, num_channels=256, id=2, resize=False, bn_trainable=True)
 
     x1 = features[0]
     x2 = features[1]
@@ -167,12 +144,13 @@ def csnet_seg_model(weights='pascal_voc', input_tensor=None, input_shape=(512, 1
     #
     # "deeplab v3+ aspp"
     # # x = _aspp(c5, 256)
+    # x = layers.Dropout(rate=0.5)(x)
     # x = layers.UpSampling2D(size=(4, 4), interpolation='bilinear')(x)
     # x = _conv_bn_relu(x, 48, 1, strides=1)
     #
     # x = Concatenate(out_size=aspp_size)([x, c2])
     # x = _conv_bn_relu(x, 256, 3, 1)
-    #
+    # x = layers.Dropout(rate=0.5)(x)#
     # x = _conv_bn_relu(x, 256, 3, 1)
     # x = layers.Dropout(rate=0.1)(x)
     #
@@ -180,6 +158,11 @@ def csnet_seg_model(weights='pascal_voc', input_tensor=None, input_shape=(512, 1
     # x = layers.UpSampling2D(size=(4, 4), interpolation='bilinear')(x)
 
     return base.input, x
+
+def classifier(x, num_classes=20):
+    x = layers.Conv2D(num_classes, 1, strides=1)(x)
+    x = layers.UpSampling2D(size=(4, 4), interpolation='bilinear')(x)
+    return x
 
 def _conv_bn_relu(x, filters, kernel_size, strides=1):
     bn_axis = 1 if K.image_data_format() == "channels_first" else -1

@@ -71,7 +71,7 @@ class CityScapes:
         labels = sample['segmentation_label']
 
         concat_img = tf.concat([img, labels], axis=-1)
-        concat_img = tf.image.random_crop(concat_img, (512, 1024, 4))
+        concat_img = tf.image.random_crop(concat_img, (self.image_size[0], self.image_size[1], 4))
         img = concat_img[:, :, :3]
         labels = concat_img[:, :, 3:]
 

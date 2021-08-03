@@ -145,7 +145,7 @@ class Seg_loss:
 
 
 def focal_loss(y_true, y_pred):
-    gamma = 1.5
+    gamma = 2.0
     y_true = tf.squeeze(y_true, -1)
 
     probs = tf.nn.softmax(y_pred, axis=-1)
@@ -163,5 +163,6 @@ def focal_loss(y_true, y_pred):
 
     # loss = tf.nn.compute_average_loss(fl_loss)
     loss = tf.reduce_mean(fl_loss)
+
 
     return loss

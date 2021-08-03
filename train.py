@@ -95,8 +95,9 @@ with mirrored_strategy.scope():
     lr_scheduler = LearningRateScheduler(poly_lr, BATCH_SIZE, False, steps_per_epoch, verbose=1)
 
     #
-    # optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
-    optimizer = tf.keras.optimizers.Nadam(learning_rate=base_lr)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
+    # optimizer = tf.keras.optimizers.SGD(learning_rate=base_lr, momentum=0.9)
+    # optimizer = tf.keras.optimizers.Nadam(learning_rate=base_lr)
 
     # adamW = tfa.optimizers.extend_with_decoupled_weight_decay(tf.keras.optimizers.Adam)
     # optimizer = adamW(weight_decay=WEIGHT_DECAY, learning_rate=base_lr)
@@ -123,7 +124,7 @@ with mirrored_strategy.scope():
         metrics=[mIoU])
 
     if LOAD_WEIGHT:
-        weight_name = 'city_0726_best_loss'
+        weight_name = '_0802_best_miou'
         model.load_weights(CHECKPOINT_DIR + weight_name + '.h5')
 
     # model.summary()

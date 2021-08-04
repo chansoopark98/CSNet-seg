@@ -73,7 +73,7 @@ test_set = dataset.get_testData(dataset.valid_data)
 
 model = seg_model_build(image_size=IMAGE_SIZE)
 
-weight_name = '_0803_best_miou'
+weight_name = '_0804_best_miou'
 model.load_weights(CHECKPOINT_DIR + weight_name + '.h5')
 
 model.summary()

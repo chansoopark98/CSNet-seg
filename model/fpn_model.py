@@ -8,11 +8,8 @@ EPSILON = 0.0001
 def fpn_model(features, fpn_times=3, activation='swish'):
     c3, c4, c5 = features
 
-    c6 = _convBlock(x=c5, num_channels=512, kernel_size=3, strides=2, name='fpn_init_conv1')
-    c6 = Activation(activation)(c6)
-
-    c7 = _convBlock(x=c6, num_channels=512, kernel_size=3, strides=2, name='fpn_init_conv1')
-    c7 = Activation(activation)(c7)
+    c6 = MaxPooling2D(pool_size=3, strides=2, padding='same')(c5)
+    c7 = MaxPooling2D(pool_size=3, strides=2, padding='same')(c6)
 
     features = [c3, c4, c5, c6, c7]
 
@@ -25,28 +22,30 @@ def fpn_model(features, fpn_times=3, activation='swish'):
     x4 = features[3]
     x5 = features[4]
 
-    x1 = _convBlock(x=x1, num_channels=48, kernel_size=3, strides=2, name='x1_feature_pool')
+    x1 = _convBlock(x=x1, num_channels=128, kernel_size=3, strides=2, name='x1_feature_pool')
     x1 = Activation(activation)(x1)
     x1 = MaxPooling2D(pool_size=3, strides=2, padding='same')(x1) # 128 to 32
 
-    x2 = _convBlock(x=x2, num_channels=64, kernel_size=3, strides=2, name='x2_feature_pool')
+    x2 = _convBlock(x=x2, num_channels=128, kernel_size=3, strides=2, name='x2_feature_pool')
     x2 = Activation(activation)(x2)
 
     x4 = UpSampling2D(size=(2, 2), interpolation='bilinear')(x4)
-    x4 = _convBlock(x=x4, num_channels=64, kernel_size=3, strides=1, name='x4_feature_pool')
+    x4 = _convBlock(x=x4, num_channels=128, kernel_size=3, strides=1, name='x4_feature_pool')
+    x4 = Activation(activation)(x4)
 
     x5 = UpSampling2D(size=(4, 4), interpolation='bilinear')(x5)
-    x5 = _convBlock(x=x5, num_channels=48, kernel_size=3, strides=1, name='x5_feature_pool')
+    x5 = _convBlock(x=x5, num_channels=128, kernel_size=3, strides=1, name='x5_feature_pool')
+    x5 = Activation(activation)(x5)
 
     x = Concatenate()([x1, x2, x3, x4, x5])
-    x = _convBlock(x=x, num_channels=256, kernel_size=3, strides=1, name='refining_process')
+    x = _convBlock(x=x, num_channels=512, kernel_size=3, strides=1, name='refining_process')
     x = Activation(activation)(x)
     x = Dropout(rate=0.5)(x)
 
     x = UpSampling2D(size=(4, 4), interpolation='bilinear')(x)
     x = _convBlock(x=x, num_channels=256, kernel_size=3, strides=1, name='up4x_sep_conv')
     x = Activation(activation)(x)
-
+    x = Dropout(rate=0.3)(x)
     x = _convBlock(x=x, num_channels=256, kernel_size=3, strides=1, name='conv_block')
     x = Activation(activation)(x)
 
@@ -60,7 +59,9 @@ def _convBlock(x, num_channels, kernel_size, strides, name, dilation_rate=1):
 
 
 def _separableConvBlock(num_channels, kernel_size, strides, dilation_rate=1):
-    f1 = SeparableConv2D(num_channels, kernel_size=kernel_size, strides=strides, padding='same',
+    # f1 = SeparableConv2D(num_channels, kernel_size=kernel_size, strides=strides, padding='same',
+    #                      use_bias=True, dilation_rate=dilation_rate)
+    f1 = Conv2D(num_channels, kernel_size=kernel_size, strides=strides, padding='same',
                          use_bias=True, dilation_rate=dilation_rate)
     f2 = BatchNormalization(momentum=MOMENTUM, epsilon=EPSILON)
     return reduce(lambda f, g: lambda *args, **kwargs: g(f(*args, **kwargs)), (f1, f2))

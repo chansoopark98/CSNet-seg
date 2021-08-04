@@ -18,7 +18,7 @@ tf.keras.backend.clear_session()
 parser = argparse.ArgumentParser()
 parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=16)
 parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=200)
-parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.001)
+parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.002)
 parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.0001)
 parser.add_argument("--model_name",     type=str,   help="저장될 모델 이름",
                     default=str(time.strftime('%m%d', time.localtime(time.time()))))
@@ -39,7 +39,7 @@ SAVE_MODEL_NAME = args.model_name
 DATASET_DIR = args.dataset_dir
 CHECKPOINT_DIR = args.checkpoint_dir
 TENSORBOARD_DIR = args.tensorboard_dir
-IMAGE_SIZE = (256, 512)
+IMAGE_SIZE = (512, 1024)
 USE_WEIGHT_DECAY = args.use_weightDecay
 LOAD_WEIGHT = args.load_weight
 MIXED_PRECISION = args.mixed_precision

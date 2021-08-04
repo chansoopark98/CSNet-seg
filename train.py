@@ -127,7 +127,7 @@ with mirrored_strategy.scope():
         weight_name = '_0802_best_miou'
         model.load_weights(CHECKPOINT_DIR + weight_name + '.h5')
 
-    # model.summary()
+    model.summary()
 
     history = model.fit(train_data,
             validation_data=valid_data,

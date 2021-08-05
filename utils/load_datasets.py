@@ -89,6 +89,17 @@ class CityScapes:
 
         return (img, labels)
 
+    @tf.function
+    def preprocess_valid(self, sample):
+        img = sample['image_left']
+        labels = sample['segmentation_label']
+
+        img = tf.cast(img, dtype=tf.float32)
+        labels = tf.cast(labels, dtype=tf.int64)
+
+        img = preprocess_input(img, mode='torch')
+        return (img, labels)
+
 
     @tf.function
     def augmentation(self, img, labels):
@@ -129,7 +140,7 @@ class CityScapes:
 
     def get_validData(self, valid_data):
 
-        valid_data = valid_data.map(self.preprocess)
+        valid_data = valid_data.map(self.preprocess_valid)
         valid_data = valid_data.repeat()
         valid_data = valid_data.batch(self.batch_size).prefetch(AUTO)
         return valid_data

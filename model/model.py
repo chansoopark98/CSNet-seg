@@ -10,28 +10,7 @@ BATCH_NORM_EPSILON = 0.001
 activation = 'swish'
 aspp_size = (32, 64)
 
-class GlobalAveragePooling2D(tf.keras.layers.GlobalAveragePooling2D):
-    def __init__(self, keep_dims=False, **kwargs):
-        super(GlobalAveragePooling2D, self).__init__(**kwargs)
-        self.keep_dims = keep_dims
 
-    def call(self, inputs):
-        if self.keep_dims is False:
-            return super(GlobalAveragePooling2D, self).call(inputs)
-        else:
-            return tf.keras.backend.mean(inputs, axis=[1, 2], keepdims=True)
-
-    def compute_output_shape(self, input_shape):
-        if self.keep_dims is False:
-            return super(GlobalAveragePooling2D, self).compute_output_shape(input_shape)
-        else:
-            input_shape = tf.TensorShape(input_shape).as_list()
-            return tf.TensorShape([input_shape[0], 1, 1, input_shape[3]])
-
-    def get_config(self):
-        config = super(GlobalAveragePooling2D, self).get_config()
-        config['keep_dim'] = self.keep_dims
-        return config
 
 
 class Concatenate(tf.keras.layers.Concatenate):
@@ -69,9 +48,9 @@ class Concatenate(tf.keras.layers.Concatenate):
 
 
 def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classes=20, OS=16):
-    global aspp_size
-    bn_axis = 1 if K.image_data_format() == "channels_first" else -1
-    aspp_size = (input_shape[0] // OS, input_shape[1] // OS)
+    # global aspp_size
+    # bn_axis = 1 if K.image_data_format() == "channels_first" else -1
+    # aspp_size = (input_shape[0] // OS, input_shape[1] // OS)
 
     if backbone == 'ResNet101':
         input_tensor = tf.keras.Input(shape=input_shape)

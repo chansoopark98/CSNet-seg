@@ -18,7 +18,7 @@ tf.keras.backend.clear_session()
 parser = argparse.ArgumentParser()
 parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=16)
 parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=200)
-parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.002)
+parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.001)
 parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.0001)
 parser.add_argument("--model_name",     type=str,   help="저장될 모델 이름",
                     default=str(time.strftime('%m%d', time.localtime(time.time()))))
@@ -39,7 +39,8 @@ SAVE_MODEL_NAME = args.model_name
 DATASET_DIR = args.dataset_dir
 CHECKPOINT_DIR = args.checkpoint_dir
 TENSORBOARD_DIR = args.tensorboard_dir
-IMAGE_SIZE = (512, 1024)
+# IMAGE_SIZE = (512, 1024)
+IMAGE_SIZE = (None, None)
 USE_WEIGHT_DECAY = args.use_weightDecay
 LOAD_WEIGHT = args.load_weight
 MIXED_PRECISION = args.mixed_precision
@@ -64,9 +65,10 @@ else:
 
 with mirrored_strategy.scope():
     print("Number of devices: {}".format(mirrored_strategy.num_replicas_in_sync))
-
-    train_dataset_config = CityScapes(DATASET_DIR, IMAGE_SIZE, BATCH_SIZE, mode='train')
-    valid_dataset_config = CityScapes(DATASET_DIR, IMAGE_SIZE, BATCH_SIZE, mode='validation')
+    TRAIN_INPUT_IMAGE_SIZE = (512, 1024)
+    VALID_INPUT_IMAGE_SIZE = (1024, 2048)
+    train_dataset_config = CityScapes(DATASET_DIR, TRAIN_INPUT_IMAGE_SIZE, BATCH_SIZE, mode='train')
+    valid_dataset_config = CityScapes(DATASET_DIR, VALID_INPUT_IMAGE_SIZE, BATCH_SIZE, mode='validation')
 
     train_data = train_dataset_config.get_trainData(train_dataset_config.train_data)
     valid_data = valid_dataset_config.get_validData(valid_dataset_config.valid_data)

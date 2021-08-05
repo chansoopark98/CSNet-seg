@@ -102,8 +102,9 @@ for x, y in tqdm(test_set, total=test_steps):
         metric.update_state(y[i], pred[i])
         buffer += metric.result().numpy()
 
-        # plt.imshow(pred[i])
-        # plt.show()
+        plt.imshow(pred[i])
+        #plt.show()
+        plt.savefig('checkpoints/results/0804_'+str(i)+'.png')
 
 
 print("CityScapes validation 1024x2048 mIoU :  ", buffer/dataset.number_valid)

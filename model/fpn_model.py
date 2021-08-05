@@ -57,20 +57,25 @@ def fpn_model(features, fpn_times=3, activation='swish'):
     x5 = gap_residual_block(x3, x5, activation=activation)
 
     x = Concatenate()([x1, x2, x3, x4, x5])
-    x = _convBlock(x=x, num_channels=256, kernel_size=3, strides=1, name='refining_process')
-    x = Activation(activation)(x)
     x = Dropout(rate=0.5)(x)
 
-    x = UpSampling2D(size=(4, 4), interpolation='bilinear')(x)
+    x = _convBlock(x=x, num_channels=384, kernel_size=3, strides=1, name='refining_process')
+    x = Activation(activation)(x)
+
+    x = UpSampling2D(size=(2, 2), interpolation='bilinear')(x)
+    x = Concatenate()([x, c4])
+    x = Dropout(rate=0.1)(x)
+    x = _convBlock(x=x, num_channels=320, kernel_size=3, strides=1, name='refining_process')
+    x = Activation(activation)(x)
+
+    x = UpSampling2D(size=(2, 2), interpolation='bilinear')(x)
+    x = Concatenate()([x, c3])
+    x = Dropout(rate=0.1)(x)
 
     x = _convBlock(x=x, num_channels=256, kernel_size=3, strides=1, name='refining_process')
     x = Activation(activation)(x)
 
-    x = Concatenate()([x, c3])
-
     x = _convBlock(x=x, num_channels=256, kernel_size=3, strides=1, name='up4x_sep_conv')
-    x = Activation(activation)(x)
-    x = _convBlock(x=x, num_channels=256, kernel_size=3, strides=1, name='conv_block')
     x = Activation(activation)(x)
 
     return x
@@ -97,7 +102,7 @@ def gap_residual_block(input_tensor, ref_tensor, activation='swish'):
 
 def _convBlock(x, num_channels, kernel_size, strides, name, dilation_rate=1):
     x = SeparableConv2D(num_channels, kernel_size=kernel_size, strides=strides, padding='same',
-               use_bias=True)(x)
+                        dilation_rate=dilation_rate, use_bias=True)(x)
     # x = Conv2D(num_channels, kernel_size=kernel_size, strides=strides, padding='same',
     #            use_bias=True)(x)
     x = BatchNormalization(momentum=MOMENTUM, epsilon=EPSILON)(x)

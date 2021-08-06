@@ -119,10 +119,10 @@ class CityScapes:
 
     def get_trainData(self, train_data):
 
-        train_data = train_data.map(self.preprocess)
+        train_data = train_data.map(self.preprocess, num_parallel_calls=AUTO)
         train_data = train_data.shuffle(100).repeat()
         # self.train_data = self.train_data.map(self.augmentation, num_parallel_calls=AUTO)
-        train_data = train_data.map(self.augmentation)
+        train_data = train_data.map(self.augmentation, num_parallel_calls=AUTO)
         train_data = train_data.batch(self.batch_size).prefetch(AUTO)
 
         return train_data

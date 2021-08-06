@@ -19,7 +19,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=16)
 parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=200)
 parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.001)
-parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.0001)
+parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.00001)
 parser.add_argument("--model_name",     type=str,   help="저장될 모델 이름",
                     default=str(time.strftime('%m%d', time.localtime(time.time()))))
 parser.add_argument("--dataset_dir",    type=str,   help="데이터셋 다운로드 디렉토리 설정", default='./datasets/')
@@ -97,12 +97,12 @@ with mirrored_strategy.scope():
     lr_scheduler = LearningRateScheduler(poly_lr, BATCH_SIZE, False, steps_per_epoch, verbose=1)
 
     #
-    optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
+    # optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
     # optimizer = tf.keras.optimizers.SGD(learning_rate=base_lr, momentum=0.9)
     # optimizer = tf.keras.optimizers.Nadam(learning_rate=base_lr)
 
-    # adamW = tfa.optimizers.extend_with_decoupled_weight_decay(tf.keras.optimizers.Adam)
-    # optimizer = adamW(weight_decay=WEIGHT_DECAY, learning_rate=base_lr)
+    adamW = tfa.optimizers.extend_with_decoupled_weight_decay(tf.keras.optimizers.Adam)
+    optimizer = adamW(weight_decay=WEIGHT_DECAY, learning_rate=base_lr)
 
     if MIXED_PRECISION:
         optimizer = mixed_precision.LossScaleOptimizer(optimizer, loss_scale='dynamic')  # tf2.4.1 이전

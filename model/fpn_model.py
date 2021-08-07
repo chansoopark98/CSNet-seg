@@ -57,26 +57,27 @@ def fpn_model(features, fpn_times=3, activation='swish'):
     x5 = gap_residual_block(x3, x5, activation=activation)
 
     x = Concatenate()([x1, x2, x3, x4, x5])
-    x = Dropout(rate=0.5)(x)
-
-    x = _convBlock(x=x, num_channels=384, kernel_size=3, strides=1, name='refining_process')
-    x = Activation(activation)(x)
-
-    x = UpSampling2D(size=(2, 2), interpolation='bilinear')(x)
-    x = Concatenate()([x, c4])
-    x = Dropout(rate=0.1)(x)
     x = _convBlock(x=x, num_channels=320, kernel_size=3, strides=1, name='refining_process')
     x = Activation(activation)(x)
+    x = Dropout(rate=0.5)(x)
 
     x = UpSampling2D(size=(2, 2), interpolation='bilinear')(x)
-    x = Concatenate()([x, c3])
-    x = Dropout(rate=0.1)(x)
+
+    x = Concatenate()([x, c4])
 
     x = _convBlock(x=x, num_channels=256, kernel_size=3, strides=1, name='refining_process')
     x = Activation(activation)(x)
 
-    x = _convBlock(x=x, num_channels=256, kernel_size=3, strides=1, name='up4x_sep_conv')
+
+    x = UpSampling2D(size=(2, 2), interpolation='bilinear')(x)
+    x = Concatenate()([x, c3])
+    x = _convBlock(x=x, num_channels=256, kernel_size=3, strides=1, name='refining_process')
     x = Activation(activation)(x)
+
+    x = _convBlock(x=x, num_channels=256, kernel_size=3, strides=1, name='refining_process')
+    x = Activation(activation)(x)
+    x = Dropout(rate=0.5)(x)
+
 
     return x
 

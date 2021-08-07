@@ -97,12 +97,12 @@ with mirrored_strategy.scope():
     lr_scheduler = LearningRateScheduler(poly_lr, BATCH_SIZE, False, steps_per_epoch, verbose=1)
 
     #
-    # optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
     # optimizer = tf.keras.optimizers.SGD(learning_rate=base_lr, momentum=0.9)
     # optimizer = tf.keras.optimizers.Nadam(learning_rate=base_lr)
 
-    adamW = tfa.optimizers.extend_with_decoupled_weight_decay(tf.keras.optimizers.Adam)
-    optimizer = adamW(weight_decay=WEIGHT_DECAY, learning_rate=base_lr)
+    # adamW = tfa.optimizers.extend_with_decoupled_weight_decay(tf.keras.optimizers.Adam)
+    # optimizer = adamW(weight_decay=WEIGHT_DECAY, learning_rate=base_lr)
 
     if MIXED_PRECISION:
         optimizer = mixed_precision.LossScaleOptimizer(optimizer, loss_scale='dynamic')  # tf2.4.1 이전

@@ -100,12 +100,12 @@ class CityScapes:
             img = tf.image.random_hue(img, max_delta=0.4)
         if tf.random.uniform([]) > 0.5:
             img = tf.image.random_saturation(img, lower=0.7, upper=1.4)
-        # # color channel swap
-        # if tf.random.uniform([]) > 0.5:
-        #     img = random_lighting_noise(img)
-        # # random gaussian blur
-        # if tf.random.uniform([]) > 0.5:
-        #     img = tfa.image.gaussian_filter2d(img, (3, 3))
+        # color channel swap
+        if tf.random.uniform([]) > 0.5:
+            img = random_lighting_noise(img)
+        # random gaussian blur
+        if tf.random.uniform([]) > 0.5:
+            img = tfa.image.gaussian_filter2d(img, (3, 3))
         # random horizontal flip
         if tf.random.uniform([]) > 0.5:
             img = tf.image.flip_left_right(img)
@@ -119,19 +119,19 @@ class CityScapes:
 
     def get_trainData(self, train_data):
 
-        train_data = train_data.map(self.preprocess, num_parallel_calls=AUTO)
-        train_data = train_data.shuffle(100).repeat()
+        train_data = train_data.map(self.preprocess)
+        train_data = train_data.shuffle(100)
         # self.train_data = self.train_data.map(self.augmentation, num_parallel_calls=AUTO)
-        train_data = train_data.map(self.augmentation, num_parallel_calls=AUTO)
-        train_data = train_data.batch(self.batch_size).prefetch(AUTO)
+        train_data = train_data.map(self.augmentation)
+        train_data = train_data.batch(self.batch_size).repeat().prefetch(AUTO)
 
         return train_data
 
     def get_validData(self, valid_data):
 
         valid_data = valid_data.map(self.preprocess_valid)
-        valid_data = valid_data.repeat()
-        valid_data = valid_data.batch(self.batch_size).prefetch(AUTO)
+
+        valid_data = valid_data.batch(self.batch_size).repeat().prefetch(AUTO)
         return valid_data
 
     def get_testData(self, valid_data):

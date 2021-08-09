@@ -68,8 +68,11 @@ class CityScapes:
 
         concat_img = tf.concat([img, labels], axis=-1)
         concat_img = tf.image.random_crop(concat_img, (self.image_size[0], self.image_size[1], 4))
+
         img = concat_img[:, :, :3]
         labels = concat_img[:, :, 3:]
+
+
 
         img = tf.cast(img, dtype=tf.float32)
         labels = tf.cast(labels, dtype=tf.int64)
@@ -103,9 +106,6 @@ class CityScapes:
         # color channel swap
         if tf.random.uniform([]) > 0.5:
             img = random_lighting_noise(img)
-        # random gaussian blur
-        if tf.random.uniform([]) > 0.5:
-            img = tfa.image.gaussian_filter2d(img, (3, 3))
         # random horizontal flip
         if tf.random.uniform([]) > 0.5:
             img = tf.image.flip_left_right(img)

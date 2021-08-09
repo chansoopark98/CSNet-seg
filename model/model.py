@@ -73,14 +73,16 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
 
     elif backbone == 'efficientV2-m':
         base = EfficientNetV2('m', input_shape=input_shape, classifier_activation=None, first_strides=1)
+        # base = EfficientNetV2M(input_shape=input_shape, classifier_activation=None, survivals=None)
         base.load_weights('checkpoints/efficientnetv2-m-21k-ft1k.h5', by_name=True)
         c5 = base.get_layer('add_50').output # 32x64
-        c4 = base.get_layer('add_9').output # 128x256
-        c3 = base.get_layer('add_4').output # 128x256
+        c4 = base.get_layer('add_29').output # 128x256
+        c3 = base.get_layer('add_10').output # 128x256
+        base.summary()
 
         features = [c3, c4, c5]
         model_input = base.input
-        model_output = fpn_model(features=features, fpn_times=3, activation='swish')
+        model_output = fpn_model(features=features, fpn_times=4, activation='swish')
         model_output = classifier(model_output, num_classes=classes)
 
     else:

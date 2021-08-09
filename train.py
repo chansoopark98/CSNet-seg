@@ -25,7 +25,7 @@ parser.add_argument("--model_name",     type=str,   help="저장될 모델 이�
 parser.add_argument("--dataset_dir",    type=str,   help="데이터셋 다운로드 디렉토리 설정", default='./datasets/')
 parser.add_argument("--checkpoint_dir", type=str,   help="모델 저장 디렉토리 설정", default='./checkpoints/')
 parser.add_argument("--tensorboard_dir",  type=str,   help="텐서보드 저장 경로", default='tensorboard')
-parser.add_argument("--use_weightDecay",  type=bool,  help="weightDecay 사용 유무", default=False)
+parser.add_argument("--use_weightDecay",  type=bool,  help="weightDecay 사용 유무", default=True)
 parser.add_argument("--load_weight",  type=bool,  help="가중치 로드", default=False)
 parser.add_argument("--mixed_precision",  type=bool,  help="mixed_precision 사용", default=True)
 parser.add_argument("--distribution_mode",  type=bool,  help="분산 학습 모드 설정 mirror or multi", default='mirror')
@@ -88,13 +88,13 @@ with mirrored_strategy.scope():
     testCallBack = Scalar_LR('test', TENSORBOARD_DIR)
     tensorboard = tf.keras.callbacks.TensorBoard(log_dir=TENSORBOARD_DIR, write_graph=True, write_images=True)
 
-    # polyDecay = tf.keras.optimizers.schedules.PolynomialDecay(initial_learning_rate=base_lr,
-    #                                                           decay_steps=EPOCHS,
-    #                                                           end_learning_rate=0.0001, power=1.0)
-    # lr_scheduler = tf.keras.callbacks.LearningRateScheduler(polyDecay)
+    polyDecay = tf.keras.optimizers.schedules.PolynomialDecay(initial_learning_rate=base_lr,
+                                                              decay_steps=EPOCHS,
+                                                              end_learning_rate=0.0001, power=0.9)
+    lr_scheduler = tf.keras.callbacks.LearningRateScheduler(polyDecay,verbose=1)
 
-    poly_lr = poly_decay(base_lr, EPOCHS, warmup=True)
-    lr_scheduler = LearningRateScheduler(poly_lr, BATCH_SIZE, False, steps_per_epoch, verbose=1)
+    # poly_lr = poly_decay(base_lr, EPOCHS, warmup=True)
+    # lr_scheduler = LearningRateScheduler(poly_lr, BATCH_SIZE, False, steps_per_epoch, verbose=1)
 
     #
     optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)

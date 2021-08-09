@@ -161,7 +161,6 @@ def focal_loss(y_true, y_pred):
     focal_modulation = (1 - probs) ** gamma
     fl_loss = focal_modulation * xent_loss
 
-    # loss = tf.nn.compute_average_loss(fl_loss)
     loss = tf.reduce_mean(fl_loss)
 
 

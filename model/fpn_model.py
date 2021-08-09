@@ -33,11 +33,14 @@ EPSILON = 0.0001
 def fpn_model(features, fpn_times=3, activation='swish'):
     c3, c4, c5 = features
 
-    c6 = _convBlock(x=c5, num_channels=320, kernel_size=3, strides=2, name='feature_downsample_x1')
-    c6 = Activation(activation)(c6)
+    # c6 = _convBlock(x=c5, num_channels=320, kernel_size=3, strides=2, name='feature_downsample_x1')
+    # c6 = Activation(activation)(c6)
+    #
+    # c7 = _convBlock(x=c6, num_channels=384, kernel_size=3, strides=2, name='feature_downsample_x1')
+    # c7 = Activation(activation)(c7)
 
-    c7 = _convBlock(x=c6, num_channels=384, kernel_size=3, strides=2, name='feature_downsample_x1')
-    c7 = Activation(activation)(c7)
+    c6 = MaxPooling2D(pool_size=3, strides=2, padding='same')(c5)
+    c7 = MaxPooling2D(pool_size=3, strides=2, padding='same')(c6)
 
     features = [c3, c4, c5, c6, c7]
 
@@ -52,32 +55,29 @@ def fpn_model(features, fpn_times=3, activation='swish'):
 
     x1 = gap_residual_block(x3, x1, activation=activation)
     x2 = gap_residual_block(x3, x2, activation=activation)
-    x3 = gap_residual_block(x3, x3, activation=activation)
+    # x3 = gap_residual_block(x3, x3, activation=activation)
     x4 = gap_residual_block(x3, x4, activation=activation)
     x5 = gap_residual_block(x3, x5, activation=activation)
 
     x = Concatenate()([x1, x2, x3, x4, x5])
-    x = _convBlock(x=x, num_channels=320, kernel_size=3, strides=1, name='refining_process')
+    x = _convBlock(x=x, num_channels=256, kernel_size=3, strides=1, name='refining_process')
     x = Activation(activation)(x)
     x = Dropout(rate=0.5)(x)
 
     x = UpSampling2D(size=(2, 2), interpolation='bilinear')(x)
-
     x = Concatenate()([x, c4])
 
     x = _convBlock(x=x, num_channels=256, kernel_size=3, strides=1, name='refining_process')
     x = Activation(activation)(x)
 
-
     x = UpSampling2D(size=(2, 2), interpolation='bilinear')(x)
     x = Concatenate()([x, c3])
-    x = _convBlock(x=x, num_channels=256, kernel_size=3, strides=1, name='refining_process')
-    x = Activation(activation)(x)
 
     x = _convBlock(x=x, num_channels=256, kernel_size=3, strides=1, name='refining_process')
     x = Activation(activation)(x)
     x = Dropout(rate=0.5)(x)
-
+    x = _convBlock(x=x, num_channels=256, kernel_size=3, strides=1, name='refining_process')
+    x = Activation(activation)(x)
 
     return x
 
@@ -96,6 +96,9 @@ def gap_residual_block(input_tensor, ref_tensor, activation='swish'):
 
     x = multiply([input_tensor, gap])
     x = add([x, input_tensor])
+
+    x = SeparableConv2D(128, kernel_size=3, strides=1, padding='same',use_bias=True)(x)
+    x = BatchNormalization(momentum=MOMENTUM, epsilon=EPSILON)(x)
     x = Activation(activation)(x)
 
     return x

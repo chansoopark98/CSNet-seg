@@ -4,19 +4,19 @@ from utils.callbacks import Scalar_LR
 from utils.load_datasets import CityScapes
 from utils.metrics import MeanIOU
 from model.model_builder import seg_model_build
-from model.loss import focal_loss
+from model.loss import focal_loss, ce_loss
 import argparse
 import time
 import os
 import tensorflow as tf
+from utils.cityscape_colormap import class_weight
 from utils.adamW import LearningRateScheduler, poly_decay
-import tensorflow_addons as tfa
 
 
 tf.keras.backend.clear_session()
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=16)
+parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=1)
 parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=200)
 parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.001)
 parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.00001)
@@ -136,6 +136,6 @@ with mirrored_strategy.scope():
             steps_per_epoch=steps_per_epoch,
             validation_steps=validation_steps,
             epochs=EPOCHS,
-            callbacks=callback)
+            callbacks=callback,sample_weight=class_weight)
 
 

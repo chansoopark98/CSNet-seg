@@ -6,12 +6,12 @@ import os
 import tensorflow as tf
 from tqdm import tqdm
 from utils.load_datasets import CityScapes
-import tensorflow_datasets as tfds
+from utils.cityscape_colormap import color_map
 
 tf.keras.backend.clear_session()
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=8)
+parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=1)
 parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=100)
 parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.001)
 parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.0005)
@@ -73,7 +73,7 @@ test_set = dataset.get_testData(dataset.valid_data)
 
 model = seg_model_build(image_size=IMAGE_SIZE)
 
-weight_name = '_0805_best_miou'
+weight_name = '_0809_best_miou'
 model.load_weights(CHECKPOINT_DIR + weight_name + '.h5')
 
 model.summary()
@@ -104,14 +104,19 @@ for x, y in tqdm(test_set, total=test_steps):
         metric.update_state(y[i], pred[i])
         buffer += metric.result().numpy()
 
-        plt.imshow(pred[i])
-        #plt.show()
-        plt.savefig('checkpoints/results/img_'+ str(batch_index) +'_' +str(i)+'.png')
+        for j in range(20):
+            # r = tf.where(pred[i] == j, color_map[j][0])
+            r = tf.where(tf.equal(pred[i],j), color_map[j][0])
+            # g = tf.where(pred[i] == j, color_map[j][1])
+            g = tf.where(tf.equal(pred[i], j), color_map[j][1])
+            # b = tf.where(pred[i] == j, color_map[j][2])
+            b = tf.where(tf.equal(pred[i], j), color_map[j][2])
 
-        plt.imshow(y[i])
-        # plt.show()
-        plt.savefig('checkpoints/results/lable_' + str(batch_index) + '_' + str(i) + '.png')
-        batch_index += 1
+            rgb_img = tf.concat([r, g, b], axis=-1)
+            plt.imshow(rgb_img)
+            plt.show()
+
+
 
 
 print("CityScapes validation 1024x2048 mIoU :  ", buffer/dataset.number_valid)

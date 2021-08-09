@@ -2,7 +2,7 @@ from tensorflow.keras.applications.imagenet_utils import preprocess_input
 from utils.augmentation import random_lighting_noise
 import tensorflow_datasets as tfds
 import tensorflow as tf
-import tensorflow_addons as tfa
+# import tensorflow_addons as tfa
 
 AUTO = tf.data.experimental.AUTOTUNE
 

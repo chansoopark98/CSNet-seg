@@ -11,7 +11,7 @@ from utils.cityscape_colormap import color_map
 tf.keras.backend.clear_session()
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=1)
+parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=16)
 parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=100)
 parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.001)
 parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.0005)
@@ -101,28 +101,36 @@ for x, y in tqdm(test_set, total=test_steps):
     pred = tf.argmax(pred, axis=-1)
 
     for i in range(len(pred)):
-        metric.update_state(y[i], pred[i])
-        buffer += metric.result().numpy()
+        # metric.update_state(y[i], pred[i])
+        # buffer += metric.result().numpy()
+
+        r = pred[i]
+        g = pred[i]
+        b = pred[i]
 
         for j in range(20):
-            # r = tf.where(pred[i] == j, color_map[j][0])
-            r = tf.where(tf.equal(pred[i],j), color_map[j][0])
-            # g = tf.where(pred[i] == j, color_map[j][1])
-            g = tf.where(tf.equal(pred[i], j), color_map[j][1])
-            # b = tf.where(pred[i] == j, color_map[j][2])
-            b = tf.where(tf.equal(pred[i], j), color_map[j][2])
+            r = tf.where(tf.equal(r, j), color_map[j][0], r)
+            g = tf.where(tf.equal(g, j), color_map[j][1], g)
+            b = tf.where(tf.equal(b, j), color_map[j][2], b)
 
-            rgb_img = tf.concat([r, g, b], axis=-1)
-            plt.imshow(rgb_img)
-            plt.show()
+        r = tf.expand_dims(r, axis=-1)
+        g = tf.expand_dims(g, axis=-1)
+        b = tf.expand_dims(b, axis=-1)
 
+        rgb_img = tf.concat([r, g, b], axis=-1)
 
-
-
-print("CityScapes validation 1024x2048 mIoU :  ", buffer/dataset.number_valid)
-
+        tf.keras.preprocessing.image.save_img('./checkpoints/results/'+str(batch_index)+'.png', rgb_img)
+        # plt.imshow(rgb_img)
+        # plt.show()
+        batch_index += 1
 
 
+
+
+# print("CityScapes validation 1024x2048 mIoU :  ", buffer/dataset.number_valid)
+
+
+)
 
 
 

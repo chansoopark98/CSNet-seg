@@ -59,7 +59,7 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
 
     elif backbone == 'efficientV2-s':
         base = EfficientNetV2S(input_shape=input_shape, classifier_activation=None, survivals=None)
-        # base.load_weights('./checkpoints/efficientnetv2-s-21k-ft1k.h5', by_name=True)
+        base.load_weights('./checkpoints/efficientnetv2-s-21k-ft1k.h5', by_name=True)
         c5 = base.get_layer('add_34').output  # 32x64 256 or get_layer('post_swish') => 확장된 채널 1280
         c4 = base.get_layer('add_7').output  # 64x128 64
         c3 = base.get_layer('add_4').output  # 128x256 48

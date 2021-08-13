@@ -9,14 +9,15 @@ import argparse
 import time
 import os
 import tensorflow as tf
+import tensorflow_addons as tfa
 from utils.cityscape_colormap import class_weight
 from utils.adamW import LearningRateScheduler, poly_decay
-
+# LD_PRELOAD="/lib/x86_64-linux-gnu/libtcmalloc_minimal.so.4" python train.py
 
 tf.keras.backend.clear_session()
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=1)
+parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=16)
 parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=200)
 parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.001)
 parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.00001)
@@ -90,19 +91,20 @@ with mirrored_strategy.scope():
 
     polyDecay = tf.keras.optimizers.schedules.PolynomialDecay(initial_learning_rate=base_lr,
                                                               decay_steps=EPOCHS,
-                                                              end_learning_rate=0.0001, power=0.9)
+                                                              end_learning_rate=0.00005, power=0.9)
+
     lr_scheduler = tf.keras.callbacks.LearningRateScheduler(polyDecay,verbose=1)
 
     # poly_lr = poly_decay(base_lr, EPOCHS, warmup=True)
     # lr_scheduler = LearningRateScheduler(poly_lr, BATCH_SIZE, False, steps_per_epoch, verbose=1)
 
     #
-    optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
+    # optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
     # optimizer = tf.keras.optimizers.SGD(learning_rate=base_lr, momentum=0.9)
     # optimizer = tf.keras.optimizers.Nadam(learning_rate=base_lr)
 
-    # adamW = tfa.optimizers.extend_with_decoupled_weight_decay(tf.keras.optimizers.Adam)
-    # optimizer = adamW(weight_decay=WEIGHT_DECAY, learning_rate=base_lr)
+    adamW = tfa.optimizers.extend_with_decoupled_weight_decay(tf.keras.optimizers.Adam)
+    optimizer = adamW(weight_decay=WEIGHT_DECAY, learning_rate=base_lr)
 
     if MIXED_PRECISION:
         optimizer = mixed_precision.LossScaleOptimizer(optimizer, loss_scale='dynamic')  # tf2.4.1 이전
@@ -116,7 +118,7 @@ with mirrored_strategy.scope():
     if USE_WEIGHT_DECAY:
         regularizer = tf.keras.regularizers.l2(WEIGHT_DECAY / 2)
         for layer in model.layers:
-            for attr in ['kernel_regularizer', 'bias_regularizer']:
+            for attr in ['kernel_regularizer']:
                 if hasattr(layer, attr) and layer.trainable:
                     setattr(layer, attr, regularizer)
 
@@ -126,7 +128,7 @@ with mirrored_strategy.scope():
         metrics=[mIoU])
 
     if LOAD_WEIGHT:
-        weight_name = '_0802_best_miou'
+        weight_name = '_0811_best_miou'
         model.load_weights(CHECKPOINT_DIR + weight_name + '.h5')
 
     model.summary()
@@ -136,6 +138,6 @@ with mirrored_strategy.scope():
             steps_per_epoch=steps_per_epoch,
             validation_steps=validation_steps,
             epochs=EPOCHS,
-            callbacks=callback,sample_weight=class_weight)
+            callbacks=callback)
 
 

@@ -2,7 +2,7 @@ from tensorflow.keras.applications.imagenet_utils import preprocess_input
 from utils.augmentation import random_lighting_noise
 import tensorflow_datasets as tfds
 import tensorflow as tf
-# import tensorflow_addons as tfa
+import tensorflow_addons as tfa
 
 AUTO = tf.data.experimental.AUTOTUNE
 
@@ -103,9 +103,11 @@ class CityScapes:
             img = tf.image.random_hue(img, max_delta=0.4)
         if tf.random.uniform([]) > 0.5:
             img = tf.image.random_saturation(img, lower=0.7, upper=1.4)
-        # color channel swap
         if tf.random.uniform([]) > 0.5:
-            img = random_lighting_noise(img)
+            img = tfa.image.sharpness(img, factor=0.5)
+        # # color channel swap
+        # if tf.random.uniform([]) > 0.5:
+        #     img = random_lighting_noise(img)
         # random horizontal flip
         if tf.random.uniform([]) > 0.5:
             img = tf.image.flip_left_right(img)
@@ -121,7 +123,6 @@ class CityScapes:
 
         train_data = train_data.map(self.preprocess)
         train_data = train_data.shuffle(100)
-        # self.train_data = self.train_data.map(self.augmentation, num_parallel_calls=AUTO)
         train_data = train_data.map(self.augmentation)
         train_data = train_data.batch(self.batch_size).repeat().prefetch(AUTO)
 

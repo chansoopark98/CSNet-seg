@@ -61,7 +61,7 @@ class CityScapes:
 
         return (img, labels)
 
-    @tf.function
+
     def preprocess(self, sample):
         img = sample['image_left']
         labels = sample['segmentation_label']
@@ -77,11 +77,11 @@ class CityScapes:
         img = tf.cast(img, dtype=tf.float32)
         labels = tf.cast(labels, dtype=tf.int64)
 
-        img = preprocess_input(img, mode='torch')
+
 
         return (img, labels)
 
-    @tf.function
+
     def preprocess_valid(self, sample):
         img = sample['image_left']
         labels = sample['segmentation_label']
@@ -95,6 +95,8 @@ class CityScapes:
 
     @tf.function
     def augmentation(self, img, labels):
+        img = preprocess_input(img, mode='torch')
+
         if tf.random.uniform([]) > 0.5:
             img = tf.image.random_brightness(img, max_delta=0.4)
         if tf.random.uniform([]) > 0.5:
@@ -103,36 +105,31 @@ class CityScapes:
             img = tf.image.random_hue(img, max_delta=0.4)
         if tf.random.uniform([]) > 0.5:
             img = tf.image.random_saturation(img, lower=0.7, upper=1.4)
-        if tf.random.uniform([]) > 0.5:
-            img = tfa.image.sharpness(img, factor=0.5)
-        # # color channel swap
         # if tf.random.uniform([]) > 0.5:
-        #     img = random_lighting_noise(img)
+        #     img = tfa.image.sharpness(img, factor=0.5)
         # random horizontal flip
         if tf.random.uniform([]) > 0.5:
             img = tf.image.flip_left_right(img)
             labels = tf.image.flip_left_right(labels)
         # random vertical flip
-        if tf.random.uniform([]) > 0.5:
-            img = tf.image.flip_up_down(img)
-            labels = tf.image.flip_up_down(labels)
+        # if tf.random.uniform([]) > 0.5:
+        #     img = tf.image.flip_up_down(img)
+        #     labels = tf.image.flip_up_down(labels)
 
         return (img, labels)
 
     def get_trainData(self, train_data):
-
-        train_data = train_data.map(self.preprocess)
+        # num_parallel_calls=AUTO
+        train_data = train_data.map(self.preprocess, num_parallel_calls=AUTO)
         train_data = train_data.shuffle(100)
-        train_data = train_data.map(self.augmentation)
-        train_data = train_data.batch(self.batch_size).repeat().prefetch(AUTO)
+        train_data = train_data.map(self.augmentation, num_parallel_calls=AUTO)
+        train_data = train_data.padded_batch(self.batch_size).repeat().prefetch(AUTO)
 
         return train_data
 
     def get_validData(self, valid_data):
-
-        valid_data = valid_data.map(self.preprocess_valid)
-
-        valid_data = valid_data.batch(self.batch_size).repeat().prefetch(AUTO)
+        valid_data = valid_data.map(self.preprocess_valid, num_parallel_calls=AUTO)
+        valid_data = valid_data.padded_batch(self.batch_size).prefetch(AUTO)
         return valid_data
 
     def get_testData(self, valid_data):

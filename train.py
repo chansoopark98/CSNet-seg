@@ -5,13 +5,15 @@ from utils.load_datasets import CityScapes
 from utils.metrics import MeanIOU
 from model.model_builder import seg_model_build
 from model.loss import focal_loss, ce_loss
+from utils.adamW import AdamW
 import argparse
 import time
 import os
 import tensorflow as tf
 import tensorflow_addons as tfa
-from utils.cityscape_colormap import class_weight
-from utils.adamW import LearningRateScheduler, poly_decay
+# from utils.cityscape_colormap import class_weight
+# from utils.adamW import LearningRateScheduler, poly_decay
+# import tensorflow_addons
 # LD_PRELOAD="/lib/x86_64-linux-gnu/libtcmalloc_minimal.so.4" python train.py
 
 tf.keras.backend.clear_session()
@@ -26,7 +28,7 @@ parser.add_argument("--model_name",     type=str,   help="저장될 모델 이�
 parser.add_argument("--dataset_dir",    type=str,   help="데이터셋 다운로드 디렉토리 설정", default='./datasets/')
 parser.add_argument("--checkpoint_dir", type=str,   help="모델 저장 디렉토리 설정", default='./checkpoints/')
 parser.add_argument("--tensorboard_dir",  type=str,   help="텐서보드 저장 경로", default='tensorboard')
-parser.add_argument("--use_weightDecay",  type=bool,  help="weightDecay 사용 유무", default=True)
+parser.add_argument("--use_weightDecay",  type=bool,  help="weightDecay 사용 유무", default=False)
 parser.add_argument("--load_weight",  type=bool,  help="가중치 로드", default=False)
 parser.add_argument("--mixed_precision",  type=bool,  help="mixed_precision 사용", default=True)
 parser.add_argument("--distribution_mode",  type=bool,  help="분산 학습 모드 설정 mirror or multi", default='mirror')
@@ -66,6 +68,7 @@ else:
 
 with mirrored_strategy.scope():
     print("Number of devices: {}".format(mirrored_strategy.num_replicas_in_sync))
+
     TRAIN_INPUT_IMAGE_SIZE = (512, 1024)
     VALID_INPUT_IMAGE_SIZE = (1024, 2048)
     train_dataset_config = CityScapes(DATASET_DIR, TRAIN_INPUT_IMAGE_SIZE, BATCH_SIZE, mode='train')
@@ -99,19 +102,18 @@ with mirrored_strategy.scope():
     # lr_scheduler = LearningRateScheduler(poly_lr, BATCH_SIZE, False, steps_per_epoch, verbose=1)
 
     #
-    # optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
     # optimizer = tf.keras.optimizers.SGD(learning_rate=base_lr, momentum=0.9)
     # optimizer = tf.keras.optimizers.Nadam(learning_rate=base_lr)
 
-    adamW = tfa.optimizers.extend_with_decoupled_weight_decay(tf.keras.optimizers.Adam)
-    optimizer = adamW(weight_decay=WEIGHT_DECAY, learning_rate=base_lr)
+    # adamW = tfa.optimizers.extend_with_decoupled_weight_decay(tf.keras.optimizers.Adam)
+    # optimizer = adamW(weight_decay=WEIGHT_DECAY, learning_rate=base_lr)
 
     if MIXED_PRECISION:
         optimizer = mixed_precision.LossScaleOptimizer(optimizer, loss_scale='dynamic')  # tf2.4.1 이전
 
     mIoU = MeanIOU(20)
-
-    callback = [checkpoint_val_loss, checkpoint_val_miou, tensorboard, testCallBack, lr_scheduler]
+    callback = [checkpoint_val_miou,  tensorboard, testCallBack, lr_scheduler]
 
     model = seg_model_build(image_size=IMAGE_SIZE)
 

@@ -1,5 +1,6 @@
+import tensorflow.keras.regularizers
 from tensorflow.keras.layers import (
-    MaxPooling2D, SeparableConv2D, UpSampling2D, Activation, Add, BatchNormalization, Conv2D, Dropout, Concatenate, multiply, add)
+    MaxPooling2D, SeparableConv2D, UpSampling2D, Activation, BatchNormalization, Conv2D, Dropout, Concatenate, multiply, add, concatenate)
 from functools import reduce
 import tensorflow as tf
 
@@ -29,8 +30,11 @@ class GlobalAveragePooling2D(tf.keras.layers.GlobalAveragePooling2D):
 
 MOMENTUM = 0.99
 EPSILON = 0.0001
+# DECAY = tf.keras.regularizers.L2(l2=0.00001//2)
+DECAY = None
+CONV_KERNEL_INITIALIZER = tf.keras.initializers.VarianceScaling(scale=2.0, mode="fan_out", distribution="truncated_normal")
 
-def fpn_model(features, fpn_times=3, activation='swish'):
+def fpn_model(features, fpn_times=3, activation='swish', fpn_channels=224):
     c3, c4, c5 = features
 
     c6 = _convBlock(x=c5, num_channels=320, kernel_size=3, strides=2, name='feature_downsample_x1')
@@ -42,7 +46,7 @@ def fpn_model(features, fpn_times=3, activation='swish'):
     features = [c3, c4, c5, c6, c7]
 
     for i in range(fpn_times):
-        features = _build_fpn(features, num_channels=224, activation=activation)
+        features = _build_fpn(features, num_channels=fpn_channels, activation=activation)
 
     x1 = features[0]
     x2 = features[1]
@@ -50,60 +54,67 @@ def fpn_model(features, fpn_times=3, activation='swish'):
     x4 = features[3]
     x5 = features[4]
 
-    x1 = gap_residual_block(x3, x1, activation=activation)
-    x2 = gap_residual_block(x3, x2, activation=activation)
-    x3 = gap_residual_block(x3, x3, activation=activation)
-    x4 = gap_residual_block(x3, x4, activation=activation)
-    x5 = gap_residual_block(x3, x5, activation=activation)
+    x1 = gap_residual_block(x3, x1, activation=activation, fpn_channels=fpn_channels, squeeze_ratio=8)
+    x2 = gap_residual_block(x3, x2, activation=activation, fpn_channels=fpn_channels, squeeze_ratio=8)
+    x3 = gap_residual_block(x3, c3, activation=activation, fpn_channels=fpn_channels, squeeze_ratio=8)
+    x4 = gap_residual_block(x3, x4, activation=activation, fpn_channels=fpn_channels, squeeze_ratio=8)
+    x5 = gap_residual_block(x3, x5, activation=activation, fpn_channels=fpn_channels, squeeze_ratio=8)
 
     x = Concatenate()([x1, x2, x3, x4, x5])
-    x = Dropout(rate=0.5)(x)
-
-    x = _convBlock(x=x, num_channels=384, kernel_size=3, strides=1, name='refining_process')
+    x = _convBlock(x=x, num_channels=256, kernel_size=3, strides=1, name='refining_process')
     x = Activation(activation)(x)
+    x = Dropout(rate=0.5)(x)
 
     x = UpSampling2D(size=(2, 2), interpolation='bilinear')(x)
     x = Concatenate()([x, c4])
 
 
-    x = _convBlock(x=x, num_channels=320, kernel_size=3, strides=1, name='refining_process')
+    x = _convBlock(x=x, num_channels=256, kernel_size=3, strides=1, name='refining_process')
     x = Activation(activation)(x)
 
     x = UpSampling2D(size=(2, 2), interpolation='bilinear')(x)
     x = Concatenate()([x, c3])
 
-
     x = _convBlock(x=x, num_channels=256, kernel_size=3, strides=1, name='refining_process')
     x = Activation(activation)(x)
+
+    x = Dropout(rate=0.5)(x)
 
     x = _convBlock(x=x, num_channels=256, kernel_size=3, strides=1, name='up4x_sep_conv')
     x = Activation(activation)(x)
 
     return x
 
-def gap_residual_block(input_tensor, ref_tensor, activation='swish'):
+def gap_residual_block(input_tensor, ref_tensor, activation='swish', fpn_channels=224, squeeze_ratio=8):
     gap = GlobalAveragePooling2D(keep_dims=True)(ref_tensor)
+    # gap = tf.reduce_mean(ref_tensor, [1, 2], keepdims=True) # test for
 
-    gap = Conv2D(224//8, 1,
+
+    gap = Conv2D(fpn_channels//squeeze_ratio, 1,
                        activation=activation,
                        padding='same',
                        use_bias=True)(gap)
 
-    gap = Conv2D(224, 1,
+    gap = Conv2D(fpn_channels, 1,
                        activation='sigmoid',
                        padding='same',
                        use_bias=True)(gap)
 
     x = multiply([input_tensor, gap])
-    x = add([x, input_tensor])
+
+    x = concatenate([x, input_tensor])
+
+    x = SeparableConv2D(fpn_channels, 3, 1, padding='same', kernel_initializer=CONV_KERNEL_INITIALIZER,
+               use_bias=True, kernel_regularizer=DECAY)(x)
+    x = BatchNormalization(momentum=MOMENTUM, epsilon=EPSILON)(x)
     x = Activation(activation)(x)
 
     return x
 
 
 def _convBlock(x, num_channels, kernel_size, strides, name, dilation_rate=1):
-    x = SeparableConv2D(num_channels, kernel_size=kernel_size, strides=strides, padding='same',
-                        dilation_rate=dilation_rate, use_bias=True)(x)
+    x = SeparableConv2D(num_channels, kernel_size=kernel_size, strides=strides, padding='same', kernel_regularizer=DECAY,
+                        kernel_initializer=CONV_KERNEL_INITIALIZER, use_bias=True)(x)
     # x = Conv2D(num_channels, kernel_size=kernel_size, strides=strides, padding='same',
     #            use_bias=True)(x)
     x = BatchNormalization(momentum=MOMENTUM, epsilon=EPSILON)(x)
@@ -111,7 +122,8 @@ def _convBlock(x, num_channels, kernel_size, strides, name, dilation_rate=1):
 
 
 def _separableConvBlock(num_channels, kernel_size, strides, dilation_rate=1):
-    f1 = SeparableConv2D(num_channels, kernel_size=kernel_size, strides=strides, padding='same',
+    f1 = SeparableConv2D(num_channels, kernel_size=kernel_size, strides=strides, padding='same', kernel_regularizer=DECAY,
+                         kernel_initializer=CONV_KERNEL_INITIALIZER,
                          use_bias=True, dilation_rate=dilation_rate)
     # f1 = Conv2D(num_channels, kernel_size=kernel_size, strides=strides, padding='same',
     #                      use_bias=True, dilation_rate=dilation_rate)

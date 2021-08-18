@@ -3,6 +3,7 @@ from model.efficientnet_v2 import *
 from model.resnet101 import *
 from tensorflow.keras import layers
 from model.fpn_model import fpn_model
+import efficientnet.keras as efn
 
 CONV_KERNEL_INITIALIZER = keras.initializers.VarianceScaling(scale=2.0, mode="fan_out", distribution="truncated_normal")
 BATCH_NORM_DECAY = 0.99
@@ -10,7 +11,16 @@ BATCH_NORM_EPSILON = 0.001
 activation = 'swish'
 aspp_size = (32, 64)
 
-
+GET_EFFICIENT_NAME = {
+    'B0': ['block3b_add', 'block5c_add', 'block7a_project_bn'],
+    'B1': ['block3c_add', 'block5d_add', 'block7b_add'],
+    'B2': ['block3c_add', 'block5d_add', 'block7b_add'],
+    'B3': ['block3c_add', 'block5e_add', 'block7b_add'],
+    'B4': ['block3d_add', 'block5f_add', 'block7b_add'],
+    'B5': ['block3e_add', 'block5g_add', 'block7c_add'],
+    'B6': ['block3f_add', 'block5h_add', 'block7c_add'],
+    'B7': ['block3g_add', 'block5j_add', 'block7d_add']
+}
 
 
 class Concatenate(tf.keras.layers.Concatenate):
@@ -57,6 +67,20 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
         encoder = ResNet('ResNet101', [1, 2])
         c2, c5 = encoder(input_tensor, ['c2', 'c5'])
 
+
+    elif backbone == 'efficientV1-b0':
+        base = efn.EfficientNetB0(weights="imagenet", include_top=False, input_shape=input_shape)
+        base.summary()
+        c3 = base.get_layer('block2b_add').output
+        c4 = base.get_layer('block3b_add').output
+        c5 = base.get_layer('block7a_project_bn').output
+
+        features = [c3, c4, c5]
+
+        model_input = base.input
+        model_output = fpn_model(features=features, fpn_times=3, activation='swish')
+        model_output = classifier(model_output, num_classes=classes)
+
     elif backbone == 'efficientV2-s':
         base = EfficientNetV2S(input_shape=input_shape, classifier_activation=None, survivals=None)
         base.load_weights('./checkpoints/efficientnetv2-s-21k-ft1k.h5', by_name=True)
@@ -68,7 +92,7 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
         features = [c3, c4, c5]
 
         model_input = base.input
-        model_output = fpn_model(features=features, fpn_times=3, activation='relu')
+        model_output = fpn_model(features=features, fpn_times=2, activation='swish')
         model_output = classifier(model_output, num_classes=classes)
 
 
@@ -79,11 +103,11 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
         c5 = base.get_layer('add_50').output # 32x64
         c4 = base.get_layer('add_29').output # 128x256
         c3 = base.get_layer('add_10').output # 128x256
-        base.summary()
+        # base.summary()
 
         features = [c3, c4, c5]
         model_input = base.input
-        model_output = fpn_model(features=features, fpn_times=4, activation='swish')
+        model_output = fpn_model(features=features, fpn_times=3, activation='swish')
         model_output = classifier(model_output, num_classes=classes)
 
     else:

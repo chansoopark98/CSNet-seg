@@ -4,13 +4,12 @@ from utils.callbacks import Scalar_LR
 from utils.load_datasets import CityScapes
 from utils.metrics import MeanIOU
 from model.model_builder import seg_model_build
-from model.loss import focal_loss, ce_loss
-from utils.adamW import AdamW
+from model.loss import Seg_loss
 import argparse
 import time
 import os
 import tensorflow as tf
-import tensorflow_addons as tfa
+
 # from utils.cityscape_colormap import class_weight
 # from utils.adamW import LearningRateScheduler, poly_decay
 # import tensorflow_addons
@@ -20,9 +19,9 @@ tf.keras.backend.clear_session()
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=16)
-parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=200)
+parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=120)
 parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.001)
-parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.00001)
+parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.0001)
 parser.add_argument("--model_name",     type=str,   help="저장될 모델 이름",
                     default=str(time.strftime('%m%d', time.localtime(time.time()))))
 parser.add_argument("--dataset_dir",    type=str,   help="데이터셋 다운로드 디렉토리 설정", default='./datasets/')
@@ -42,8 +41,8 @@ SAVE_MODEL_NAME = args.model_name
 DATASET_DIR = args.dataset_dir
 CHECKPOINT_DIR = args.checkpoint_dir
 TENSORBOARD_DIR = args.tensorboard_dir
-# IMAGE_SIZE = (512, 1024)
-IMAGE_SIZE = (None, None)
+IMAGE_SIZE = (512, 1024)
+# IMAGE_SIZE = (None, None)
 USE_WEIGHT_DECAY = args.use_weightDecay
 LOAD_WEIGHT = args.load_weight
 MIXED_PRECISION = args.mixed_precision
@@ -62,20 +61,23 @@ if DISTRIBUTION_MODE == 'multi':
         tf.distribute.experimental.CollectiveCommunication.NCCL)
 
 else:
-    # mirrored_strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
-    mirrored_strategy = tf.distribute.MirroredStrategy()
+    mirrored_strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
+    # mirrored_strategy = tf.distribute.MirroredStrategy()
 
 
 with mirrored_strategy.scope():
     print("Number of devices: {}".format(mirrored_strategy.num_replicas_in_sync))
 
     TRAIN_INPUT_IMAGE_SIZE = (512, 1024)
-    VALID_INPUT_IMAGE_SIZE = (1024, 2048)
+    VALID_INPUT_IMAGE_SIZE = (512, 1024)
+    # VALID_INPUT_IMAGE_SIZE = (1024, 2048)
     train_dataset_config = CityScapes(DATASET_DIR, TRAIN_INPUT_IMAGE_SIZE, BATCH_SIZE, mode='train')
     valid_dataset_config = CityScapes(DATASET_DIR, VALID_INPUT_IMAGE_SIZE, BATCH_SIZE, mode='validation')
 
     train_data = train_dataset_config.get_trainData(train_dataset_config.train_data)
+    train_data = mirrored_strategy.experimental_distribute_dataset(train_data)
     valid_data = valid_dataset_config.get_validData(valid_dataset_config.valid_data)
+    valid_data = mirrored_strategy.experimental_distribute_dataset(valid_data)
 
     steps_per_epoch = train_dataset_config.number_train // BATCH_SIZE
     validation_steps = valid_dataset_config.number_valid // BATCH_SIZE
@@ -115,6 +117,8 @@ with mirrored_strategy.scope():
     mIoU = MeanIOU(20)
     callback = [checkpoint_val_miou,  tensorboard, testCallBack, lr_scheduler]
 
+    loss = Seg_loss(BATCH_SIZE)
+
     model = seg_model_build(image_size=IMAGE_SIZE)
 
     if USE_WEIGHT_DECAY:
@@ -126,7 +130,7 @@ with mirrored_strategy.scope():
 
     model.compile(
         optimizer=optimizer,
-        loss=focal_loss,
+        loss=loss.total_loss,
         metrics=[mIoU])
 
     if LOAD_WEIGHT:

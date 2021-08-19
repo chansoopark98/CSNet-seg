@@ -1,5 +1,5 @@
 from tensorflow.keras.applications.imagenet_utils import preprocess_input
-from utils.augmentation import random_lighting_noise
+from utils.augmentation import random_rescale_image_and_label, random_crop_or_pad_image_and_label
 import tensorflow_datasets as tfds
 import tensorflow as tf
 import tensorflow_addons as tfa
@@ -36,7 +36,7 @@ class CityScapes:
 
     def _load_train_datasets(self):
         train_data = tfds.load('cityscapes/semantic_segmentation',
-                               data_dir=self.data_dir, split='train')
+                               data_dir=self.data_dir, split='train', shuffle_files=True)
 
 
         number_train = train_data.reduce(0, lambda x, _: x + 1).numpy()
@@ -67,7 +67,7 @@ class CityScapes:
         labels = sample['segmentation_label']
 
         concat_img = tf.concat([img, labels], axis=-1)
-        concat_img = tf.image.random_crop(concat_img, (self.image_size[0], self.image_size[1], 4), seed=47)
+        concat_img = tf.image.random_crop(concat_img, (self.image_size[0], self.image_size[1], 4))
 
         img = concat_img[:, :, :3]
         labels = concat_img[:, :, 3:]
@@ -81,13 +81,13 @@ class CityScapes:
 
         return (img, labels)
 
-
+    @tf.function
     def preprocess_valid(self, sample):
         img = sample['image_left']
         labels = sample['segmentation_label']
 
         concat_img = tf.concat([img, labels], axis=-1)
-        concat_img = tf.image.random_crop(concat_img, (self.image_size[0], self.image_size[1], 4), seed=47)
+        concat_img = tf.image.random_crop(concat_img, (self.image_size[0], self.image_size[1], 4))
 
         img = concat_img[:, :, :3]
         labels = concat_img[:, :, 3:]
@@ -97,7 +97,9 @@ class CityScapes:
         labels = tf.cast(labels, dtype=tf.int64)
 
         img = preprocess_input(img, mode='torch')
+
         return (img, labels)
+
 
 
     @tf.function
@@ -117,24 +119,26 @@ class CityScapes:
             img = tf.image.random_saturation(img, lower=0.1, upper=0.8)
         # if tf.random.uniform([]) > 0.5:
         #     img = tfa.image.sharpness(img, factor=0.5)
-        # random horizontal flip
+
+
         if tf.random.uniform([]) > 0.5:
             img = tf.image.flip_left_right(img)
             labels = tf.image.flip_left_right(labels)
-        # # random vertical flip
-        # if tf.random.uniform([]) > 0.5:
-        #     img = tf.image.flip_up_down(img)
-        #     labels = tf.image.flip_up_down(labels)
+        # random vertical flip
+        if tf.random.uniform([]) > 0.5:
+            img = tf.image.flip_up_down(img)
+            labels = tf.image.flip_up_down(labels)
 
         return (img, labels)
 
     def get_trainData(self, train_data):
         # num_parallel_calls=AUTO
+        # train_data = train_data.shuffle(buffer_size=1000)
         train_data = train_data.map(self.preprocess, num_parallel_calls=AUTO)
-        train_data = train_data.shuffle(1000)
         train_data = train_data.map(self.augmentation, num_parallel_calls=AUTO)
-        train_data = train_data.padded_batch(self.batch_size).repeat().prefetch(AUTO)
-        # strategy.experimental_distribute_dataset(dataset)
+        train_data = train_data.prefetch(AUTO)
+        train_data = train_data.repeat()
+        train_data = train_data.padded_batch(self.batch_size)
 
         return train_data
 

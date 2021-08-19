@@ -82,17 +82,23 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
         model_output = classifier(model_output, num_classes=classes)
 
     elif backbone == 'efficientV2-s':
-        base = EfficientNetV2S(input_shape=input_shape, classifier_activation=None, survivals=None)
-        base.load_weights('./checkpoints/efficientnetv2-s-21k-ft1k.h5', by_name=True)
-        c5 = base.get_layer('add_34').output  # 32x64 256 or get_layer('post_swish') => 확장된 채널 1280
-        # c5 = base.get_layer('post_swish').output  # 32x64 256 or get_layer('post_swish') => 확장된 채널 1280
-        c4 = base.get_layer('add_7').output  # 64x128 64
-        c3 = base.get_layer('add_4').output  # 128x256 48
+        # base = EfficientNetV2S(input_shape=input_shape, classifier_activation=None, survivals=None)
+        # base = EfficientNetV2S(pretrained="imagenet21k-ft1k", input_shape=input_shape, num_classes=0, dropout=0.2)
+        base = EfficientNetV2S(pretrained="imagenet21k", input_shape=input_shape, num_classes=0, dropout=1e-6)
 
-        features = [c3, c4, c5]
+
+        base.summary()
+        # base.load_weights('./checkpoints/efficientnetv2-s-21k-ft1k.h5', by_name=True)
+        c5 = base.get_layer('add_34').output  # 16x32 256 or get_layer('post_swish') => 확장된 채널 1280
+        # c5 = base.get_layer('post_swish').output  # 32x64 256 or get_layer('post_swish') => 확장된 채널 1280
+        # c4 = base.get_layer('add_20').output  # 32x64 64
+        # c3 = base.get_layer('add_7').output  # 64x128 48
+        c2 = base.get_layer('add_4').output  # 128x256 48
+
+        features = [c2, c5]
 
         model_input = base.input
-        model_output = fpn_model(features=features, fpn_times=2, activation='swish')
+        model_output = fpn_model(features=features, fpn_times=3, activation='swish')
         model_output = classifier(model_output, num_classes=classes)
 
 

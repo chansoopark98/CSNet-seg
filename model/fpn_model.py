@@ -5,7 +5,7 @@ from tensorflow.keras.layers import (
     DepthwiseConv2D, Reshape, ZeroPadding2D)
 from functools import reduce
 import tensorflow as tf
-
+#
 # class GlobalAveragePooling2D(tf.keras.layers.GlobalAveragePooling2D):
 #     def __init__(self, keep_dims=False, **kwargs):
 #         super(GlobalAveragePooling2D, self).__init__(**kwargs)
@@ -55,6 +55,8 @@ def fpn_model(features, fpn_times=2, activation='swish', fpn_channels=256):
     b4 = tf.keras.layers.experimental.preprocessing.Resizing(
             *size_before[1:3], interpolation="bilinear"
         )(b4)
+
+    # b4 = UpSampling2D(size=(32, 64), interpolation="bilinear")(b4)
     # simple 1x1
     b0 = Conv2D(256, (1, 1), padding='same', use_bias=False, name='aspp0')(x)
     b0 = BatchNormalization(name='aspp0_BN', epsilon=1e-5)(b0)
@@ -82,6 +84,9 @@ def fpn_model(features, fpn_times=2, activation='swish', fpn_channels=256):
     x = tf.keras.layers.experimental.preprocessing.Resizing(
         *skip_size[1:3], interpolation="bilinear"
     )(x)
+
+    # x = UpSampling2D((4,4), interpolation='bilinear')(x)
+
     dec_skip1 = Conv2D(48, (1, 1), padding='same',
                        use_bias=False, name='feature_projection0')(skip1)
     dec_skip1 = BatchNormalization(

@@ -30,16 +30,18 @@ class CityScapes:
                                data_dir=self.data_dir, split='validation')
 
         number_valid = valid_data.reduce(0, lambda x, _: x + 1).numpy()
+        # number_valid = 500
         print("검증 데이터 개수:", number_valid)
 
         return valid_data, number_valid
 
     def _load_train_datasets(self):
         train_data = tfds.load('cityscapes/semantic_segmentation',
-                               data_dir=self.data_dir, split='train', shuffle_files=True)
+                               data_dir=self.data_dir, split='train')
 
 
         number_train = train_data.reduce(0, lambda x, _: x + 1).numpy()
+        # number_train = 2975
         print("학습 데이터 개수", number_train)
 
         return train_data, number_train
@@ -61,7 +63,7 @@ class CityScapes:
 
         return (img, labels)
 
-
+    @tf.function
     def preprocess(self, sample):
         img = sample['image_left']
         labels = sample['segmentation_label']
@@ -77,7 +79,7 @@ class CityScapes:
         img = tf.cast(img, dtype=tf.float32)
         labels = tf.cast(labels, dtype=tf.int64)
 
-
+        img = preprocess_input(img, mode='torch')
 
         return (img, labels)
 
@@ -104,7 +106,7 @@ class CityScapes:
 
     @tf.function
     def augmentation(self, img, labels):
-        img = preprocess_input(img, mode='torch')
+
 
         if tf.random.uniform([]) > 0.5:
             # img = tf.image.random_brightness(img, max_delta=0.4)
@@ -125,15 +127,15 @@ class CityScapes:
             img = tf.image.flip_left_right(img)
             labels = tf.image.flip_left_right(labels)
         # random vertical flip
-        if tf.random.uniform([]) > 0.5:
-            img = tf.image.flip_up_down(img)
-            labels = tf.image.flip_up_down(labels)
+        # if tf.random.uniform([]) > 0.5:
+        #     img = tf.image.flip_up_down(img)
+        #     labels = tf.image.flip_up_down(labels)
 
         return (img, labels)
 
     def get_trainData(self, train_data):
         # num_parallel_calls=AUTO
-        # train_data = train_data.shuffle(buffer_size=1000)
+        train_data = train_data.shuffle(buffer_size=1000)
         train_data = train_data.map(self.preprocess, num_parallel_calls=AUTO)
         train_data = train_data.map(self.augmentation, num_parallel_calls=AUTO)
         train_data = train_data.prefetch(AUTO)

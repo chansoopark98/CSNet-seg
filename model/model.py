@@ -3,7 +3,7 @@ from model.efficientnet_v2 import *
 from model.resnet101 import *
 from tensorflow.keras import layers
 from model.fpn_model import fpn_model
-import efficientnet.keras as efn
+
 
 CONV_KERNEL_INITIALIZER = keras.initializers.VarianceScaling(scale=2.0, mode="fan_out", distribution="truncated_normal")
 BATCH_NORM_DECAY = 0.99
@@ -84,9 +84,8 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
     elif backbone == 'efficientV2-s':
         # base = EfficientNetV2S(input_shape=input_shape, classifier_activation=None, survivals=None)
         # base = EfficientNetV2S(pretrained="imagenet21k-ft1k", input_shape=input_shape, num_classes=0, dropout=0.2)
-        base = EfficientNetV2S(pretrained="imagenet21k", input_shape=input_shape, num_classes=0, dropout=1e-6)
-
-
+        # base = EfficientNetV2S(pretrained="imagenet", input_shape=input_shape, num_classes=0, dropout=1e-6)
+        base = EfficientNetV2S(input_shape=input_shape, pretrained="imagenet")
         base.summary()
         # base.load_weights('./checkpoints/efficientnetv2-s-21k-ft1k.h5', by_name=True)
         c5 = base.get_layer('add_34').output  # 16x32 256 or get_layer('post_swish') => 확장된 채널 1280

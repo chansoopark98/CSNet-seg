@@ -13,6 +13,7 @@ import tensorflow as tf
 # from utils.cityscape_colormap import class_weight
 # from utils.adamW import LearningRateScheduler, poly_decay
 # import tensorflow_addons
+# sudo apt-get install libtcmalloc-minimal4
 # LD_PRELOAD="/lib/x86_64-linux-gnu/libtcmalloc_minimal.so.4" python train.py
 
 tf.keras.backend.clear_session()
@@ -61,8 +62,8 @@ if DISTRIBUTION_MODE == 'multi':
         tf.distribute.experimental.CollectiveCommunication.NCCL)
 
 else:
-    mirrored_strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
-    # mirrored_strategy = tf.distribute.MirroredStrategy()
+    # mirrored_strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
+    mirrored_strategy = tf.distribute.MirroredStrategy()
 
 
 with mirrored_strategy.scope():
@@ -80,6 +81,7 @@ with mirrored_strategy.scope():
     valid_data = mirrored_strategy.experimental_distribute_dataset(valid_data)
 
     steps_per_epoch = train_dataset_config.number_train // BATCH_SIZE
+
     validation_steps = valid_dataset_config.number_valid // BATCH_SIZE
     print("학습 배치 개수:", steps_per_epoch)
     print("검증 배치 개수:", validation_steps)
@@ -103,7 +105,7 @@ with mirrored_strategy.scope():
     # poly_lr = poly_decay(base_lr, EPOCHS, warmup=True)
     # lr_scheduler = LearningRateScheduler(poly_lr, BATCH_SIZE, False, steps_per_epoch, verbose=1)
 
-    #
+
     optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
     # optimizer = tf.keras.optimizers.SGD(learning_rate=base_lr, momentum=0.9)
     # optimizer = tf.keras.optimizers.Nadam(learning_rate=base_lr)

@@ -58,6 +58,15 @@ BLOCK_CONFIGS = {
         "strides": [1, 2, 2, 2, 1, 2],
         "use_ses": [0, 0, 0, 1, 1, 1],
     },
+    "t": {  # width 1.4 * 0.8, depth 1.8 * 0.9, from timm
+        "first_conv_filter": 24,
+        "output_conv_filter": 1024,
+        "expands": [1, 4, 4, 4, 6, 6],
+        "out_channels": [24, 40, 48, 104, 128, 208],
+        "depthes": [2, 4, 4, 6, 9, 14],
+        "strides": [1, 2, 2, 2, 1, 2],
+        "use_ses": [0, 0, 0, 1, 1, 1],
+    },
     "s": {  # width 1.4, depth 1.8
         "first_conv_filter": 24,
         "output_conv_filter": 1280,
@@ -94,6 +103,18 @@ BLOCK_CONFIGS = {
         "strides": [1, 2, 2, 2, 1, 2, 1],
         "use_ses": [0, 0, 0, 1, 1, 1, 1],
     },
+}
+
+FILE_HASH_DICT = {
+    "b0": {"21k-ft1k": "4e4da4eb629897e4d6271e131039fe75", "21k": "5dbb4252df24b931e74cdd94d150f25a", "imagenet": "9abdc43cb00f4cb06a8bdae881f412d6"},
+    "b1": {"21k-ft1k": "5f1aee82209f4f0f20bd24460270564e", "21k": "a50ae65b50ceff7f5283be2f4506d2c2", "imagenet": "5d4223b59ff268828d5112a1630e234e"},
+    "b2": {"21k-ft1k": "ec384b84441ddf6419938d1e5a0cbef2", "21k": "9f718a8bbb7b63c5313916c5e504790d", "imagenet": "1814bc08d4bb7a5e0ed3ccfe1cf18650"},
+    "b3": {"21k-ft1k": "4a27827b0b2df508bed31ae231003bb1", "21k": "ade5bdbbdf1d54c4561aa41511525855", "imagenet": "cda85b8494c7ec5a68dffb335a254bab"},
+    "l": {"21k-ft1k": "30327edcf1390d10e9a0de42a2d731e3", "21k": "7970f913eec1b4918e007c8580726412", "imagenet": "2b65f5789f4d2f1bf66ecd6d9c5c2d46"},
+    "m": {"21k-ft1k": "0c236c3020e3857de1e5f2939abd0cc6", "21k": "3923c286366b2a5137f39d1e5b14e202", "imagenet": "ac3fd0ff91b35d18d1df8f1895efe1d5"},
+    "s": {"21k-ft1k": "93046a0d601da46bfce9d4ca14224c83", "21k": "10b05d878b64f796ab984a5316a4a1c3", "imagenet": "3b91df2c50c7a56071cca428d53b8c0d"},
+    "t": {"imagenet": "46632458117102758518158bf35444d7"},
+    "xl": {"21k-ft1k": "9aaa2bd3c9495b23357bc6593eee5bce", "21k": "c97de2770f55701f788644336181e8ee"},
 }
 
 
@@ -166,6 +187,7 @@ def MBConv(inputs, output_channel, stride, expand_ratio, shortcut, drop_rate=0, 
         nn = inputs
 
     if not is_fused:
+        # nn = keras.layers.ZeroPadding2D(padding=1, name=name + "pad")(nn)
         nn = DepthwiseConv2D((3, 3), padding="same", strides=stride, use_bias=False, depthwise_initializer=CONV_KERNEL_INITIALIZER, name=name + "MB_dw_")(nn)
         nn = batchnorm_with_activation(nn, name=name + "MB_dw_")
 
@@ -196,9 +218,9 @@ def EfficientNetV2(
     first_strides=2,
     drop_connect_rate=0,
     classifier_activation="softmax",
-    pretrained="imagenet21k-ft1k",
+    pretrained="imagenet",
     model_name="EfficientNetV2",
-    kwargs=None,    # Not used, just recieving parameter
+    kwargs=None,  # Not used, just recieving parameter
 ):
     blocks_config = BLOCK_CONFIGS.get(model_type.lower(), BLOCK_CONFIGS["s"])
     expands = blocks_config["expands"]
@@ -237,7 +259,7 @@ def EfficientNetV2(
         nn = GlobalAveragePooling2D(name="avg_pool")(nn)
         if dropout > 0 and dropout < 1:
             nn = Dropout(dropout)(nn)
-        nn = Dense(num_classes, activation=classifier_activation, name="predictions")(nn)
+        nn = Dense(num_classes, activation=classifier_activation, dtype="float32", name="predictions")(nn)
 
     model = Model(inputs=inputs, outputs=nn, name=model_name)
     reload_model_weights(model, model_type, pretrained)
@@ -249,12 +271,18 @@ def reload_model_weights(model, model_type, pretrained="imagenet"):
     if not pretrained in pretrained_dd:
         print(">>>> No pretraind available, model will be randomly initialized")
         return
+    pre_tt = pretrained_dd[pretrained]
+    if model_type not in FILE_HASH_DICT or pre_tt not in FILE_HASH_DICT[model_type]:
+        print(">>>> No pretraind available, model will be randomly initialized")
+        return
 
-    pre_url = "https://github.com/leondgarse/keras_efficientnet_v2/releases/download/v1.0.0/efficientnetv2-{}-{}.h5"
-    url = pre_url.format(model_type, pretrained_dd[pretrained])
+    pre_url = "https://github.com/leondgarse/keras_efficientnet_v2/releases/download/effnetv2_pretrained/efficientnetv2-{}-{}.h5"
+    url = pre_url.format(model_type, pre_tt)
     file_name = os.path.basename(url)
+    file_hash = FILE_HASH_DICT[model_type][pre_tt]
+
     try:
-        pretrained_model = keras.utils.get_file(file_name, url, cache_subdir="models/efficientnetv2")
+        pretrained_model = keras.utils.get_file(file_name, url, cache_subdir="models/efficientnetv2", file_hash=file_hash)
     except:
         print("[Error] will not load weights, url not found or download failed:", url)
         return
@@ -263,35 +291,39 @@ def reload_model_weights(model, model_type, pretrained="imagenet"):
         model.load_weights(pretrained_model, by_name=True, skip_mismatch=True)
 
 
-def EfficientNetV2B0(input_shape=(224, 224, 3), num_classes=1000, dropout=0.2, classifier_activation="softmax", pretrained="imagenet21k-ft1k", **kwargs):
+def EfficientNetV2B0(input_shape=(224, 224, 3), num_classes=1000, dropout=0.2, classifier_activation="softmax", pretrained="imagenet", **kwargs):
     return EfficientNetV2(model_type="b0", model_name="EfficientNetV2B0", **locals(), **kwargs)
 
 
-def EfficientNetV2B1(input_shape=(240, 240, 3), num_classes=1000, dropout=0.2, classifier_activation="softmax", pretrained="imagenet21k-ft1k", **kwargs):
+def EfficientNetV2B1(input_shape=(240, 240, 3), num_classes=1000, dropout=0.2, classifier_activation="softmax", pretrained="imagenet", **kwargs):
     return EfficientNetV2(model_type="b1", model_name="EfficientNetV2B1", **locals(), **kwargs)
 
 
-def EfficientNetV2B2(input_shape=(260, 260, 3), num_classes=1000, dropout=0.3, classifier_activation="softmax", pretrained="imagenet21k-ft1k", **kwargs):
+def EfficientNetV2B2(input_shape=(260, 260, 3), num_classes=1000, dropout=0.3, classifier_activation="softmax", pretrained="imagenet", **kwargs):
     return EfficientNetV2(model_type="b2", model_name="EfficientNetV2B2", **locals(), **kwargs)
 
 
-def EfficientNetV2B3(input_shape=(300, 300, 3), num_classes=1000, dropout=0.3, classifier_activation="softmax", pretrained="imagenet21k-ft1k", **kwargs):
+def EfficientNetV2B3(input_shape=(300, 300, 3), num_classes=1000, dropout=0.3, classifier_activation="softmax", pretrained="imagenet", **kwargs):
     return EfficientNetV2(model_type="b3", model_name="EfficientNetV2B3", **locals(), **kwargs)
 
 
-def EfficientNetV2S(input_shape=(384, 384, 3), num_classes=1000, dropout=0.2, classifier_activation="softmax", pretrained="imagenet21k-ft1k", **kwargs):
+def EfficientNetV2T(input_shape=(320, 320, 3), num_classes=1000, dropout=0.2, classifier_activation="softmax", pretrained="imagenet", **kwargs):
+    return EfficientNetV2(model_type="t", model_name="EfficientNetV2T", **locals(), **kwargs)
+
+
+def EfficientNetV2S(input_shape=(384, 384, 3), num_classes=1000, dropout=0.2, classifier_activation="softmax", pretrained="imagenet", **kwargs):
     return EfficientNetV2(model_type="s", model_name="EfficientNetV2S", **locals(), **kwargs)
 
 
-def EfficientNetV2M(input_shape=(480, 480, 3), num_classes=1000, dropout=0.3, classifier_activation="softmax", pretrained="imagenet21k-ft1k", **kwargs):
+def EfficientNetV2M(input_shape=(480, 480, 3), num_classes=1000, dropout=0.3, classifier_activation="softmax", pretrained="imagenet", **kwargs):
     return EfficientNetV2(model_type="m", model_name="EfficientNetV2M", **locals(), **kwargs)
 
 
-def EfficientNetV2L(input_shape=(480, 480, 3), num_classes=1000, dropout=0.4, classifier_activation="softmax", pretrained="imagenet21k-ft1k", **kwargs):
+def EfficientNetV2L(input_shape=(480, 480, 3), num_classes=1000, dropout=0.4, classifier_activation="softmax", pretrained="imagenet", **kwargs):
     return EfficientNetV2(model_type="l", model_name="EfficientNetV2L", **locals(), **kwargs)
 
 
-def EfficientNetV2XL(input_shape=(512, 512, 3), num_classes=1000, dropout=0.4, classifier_activation="softmax", pretrained="imagenet21k-ft1k", **kwargs):
+def EfficientNetV2XL(input_shape=(512, 512, 3), num_classes=1000, dropout=0.4, classifier_activation="softmax", pretrained="imagenet", **kwargs):
     return EfficientNetV2(model_type="xl", model_name="EfficientNetV2XL", **locals(), **kwargs)
 
 

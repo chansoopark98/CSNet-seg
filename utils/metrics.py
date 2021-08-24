@@ -12,7 +12,8 @@ class MeanIOU(tf.keras.metrics.MeanIoU):
 
         y_pred = tf.argmax(y_pred, axis=-1)
         # y_pred = tf.squeeze(y_pred, axis=-1)
-        y_true = tf.squeeze(y_true, -1)
+
+        y_true = tf.squeeze(y_true, axis=-1)
 
         indices = tf.cast(tf.where(tf.equal(y_true, 0), 0, 1), tf.int64)
 

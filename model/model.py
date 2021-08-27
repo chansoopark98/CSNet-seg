@@ -5,7 +5,7 @@ from tensorflow.keras import layers
 from model.fpn_model import fpn_model
 
 
-CONV_KERNEL_INITIALIZER = keras.initializers.VarianceScaling(scale=2.0, mode="fan_out", distribution="truncated_normal")
+CONV_KERNEL_INITIALIZER = keras.initializers.VarianceScaling(scale=1.0, mode="fan_out", distribution="truncated_normal")
 BATCH_NORM_DECAY = 0.99
 BATCH_NORM_EPSILON = 0.001
 activation = 'swish'
@@ -91,13 +91,13 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
         c5 = base.get_layer('add_34').output  # 16x32 256 or get_layer('post_swish') => 확장된 채널 1280
         # c5 = base.get_layer('post_swish').output  # 32x64 256 or get_layer('post_swish') => 확장된 채널 1280
         # c4 = base.get_layer('add_20').output  # 32x64 64
-        # c3 = base.get_layer('add_7').output  # 64x128 48
+        c3 = base.get_layer('add_7').output  # 64x128 48
         c2 = base.get_layer('add_4').output  # 128x256 48
 
-        features = [c2, c5]
+        features = [c2, c3, c5]
 
         model_input = base.input
-        model_output = fpn_model(features=features, fpn_times=3, activation='swish')
+        model_output = fpn_model(features=features, fpn_times=2, activation='swish', mode='fpn')
         model_output = classifier(model_output, num_classes=classes)
 
 

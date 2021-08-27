@@ -9,7 +9,8 @@ import argparse
 import time
 import os
 import tensorflow as tf
-
+from utils.get_flops import get_flops
+import tensorflow_addons as tfa
 # from utils.cityscape_colormap import class_weight
 # from utils.adamW import LearningRateScheduler, poly_decay
 # import tensorflow_addons
@@ -22,7 +23,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=16)
 parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=120)
 parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.001)
-parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.0001)
+parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.00001)
 parser.add_argument("--model_name",     type=str,   help="저장될 모델 이름",
                     default=str(time.strftime('%m%d', time.localtime(time.time()))))
 parser.add_argument("--dataset_dir",    type=str,   help="데이터셋 다운로드 디렉토리 설정", default='./datasets/')
@@ -98,7 +99,7 @@ with mirrored_strategy.scope():
 
     polyDecay = tf.keras.optimizers.schedules.PolynomialDecay(initial_learning_rate=base_lr,
                                                               decay_steps=EPOCHS,
-                                                              end_learning_rate=0.00005, power=0.9)
+                                                              end_learning_rate=0.000001, power=0.9)
 
     lr_scheduler = tf.keras.callbacks.LearningRateScheduler(polyDecay,verbose=1)
 
@@ -132,7 +133,7 @@ with mirrored_strategy.scope():
 
     model.compile(
         optimizer=optimizer,
-        loss=loss.total_loss,
+        loss=loss.focal_loss,
         metrics=[mIoU])
 
     if LOAD_WEIGHT:
@@ -140,6 +141,7 @@ with mirrored_strategy.scope():
         model.load_weights(CHECKPOINT_DIR + weight_name + '.h5')
 
     model.summary()
+    # print(get_flops(model))
 
     history = model.fit(train_data,
             validation_data=valid_data,

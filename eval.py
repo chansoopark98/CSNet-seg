@@ -73,7 +73,7 @@ test_set = dataset.get_testData(dataset.valid_data)
 
 model = seg_model_build(image_size=IMAGE_SIZE)
 
-weight_name = '_0809_best_miou'
+weight_name = '_0826_best_miou'
 model.load_weights(CHECKPOINT_DIR + weight_name + '.h5')
 
 model.summary()
@@ -96,6 +96,8 @@ class MeanIOU(tf.keras.metrics.MeanIoU):
 metric = MeanIOU(20)
 buffer = 0
 batch_index = 1
+save_path = './checkpoints/results/'+SAVE_MODEL_NAME+'/'
+os.makedirs(save_path, exist_ok=True)
 for x, y in tqdm(test_set, total=test_steps):
     pred = model.predict_on_batch(x)#pred = tf.nn.softmax(pred)
     pred = tf.argmax(pred, axis=-1)
@@ -119,7 +121,7 @@ for x, y in tqdm(test_set, total=test_steps):
 
         rgb_img = tf.concat([r, g, b], axis=-1)
 
-        tf.keras.preprocessing.image.save_img('./checkpoints/results/'+str(batch_index)+'.png', rgb_img)
+        tf.keras.preprocessing.image.save_img(save_path+str(batch_index)+'.png', rgb_img)
         # plt.imshow(rgb_img)
         # plt.show()
         batch_index += 1
@@ -128,9 +130,6 @@ for x, y in tqdm(test_set, total=test_steps):
 
 
 # print("CityScapes validation 1024x2048 mIoU :  ", buffer/dataset.number_valid)
-
-
-)
 
 
 

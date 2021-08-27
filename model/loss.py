@@ -100,12 +100,15 @@ class SparseCategoricalFocalLoss(tf.keras.losses.Loss):
                                              gamma=self.gamma,
                                              from_logits=self.from_logits)
 
+import tensorflow.keras.backend as K
 
 class Seg_loss:
     def __init__(self, batch_size):
         self.batch_size = batch_size
+        self.alpha = 0.25
+        self.gamma = 2.0
 
-    def total_loss(self, y_true, y_pred):
+    def ce_loss(self, y_true, y_pred):
         """
         Args:
             y_true: (N, H, W, 1)
@@ -123,14 +126,29 @@ class Seg_loss:
         loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True,
                                                              reduction=tf.keras.losses.Reduction.NONE)(y_true=y_true, y_pred=y_pred)
 
-
-
+        # loss = K.mean(loss)
 
         return loss
 
+    def focal_loss(self, y_true, y_pred):
+
+        y_true = tf.squeeze(y_true, axis=-1)
+        probs = tf.nn.softmax(y_pred, axis=-1)
+        ce = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True,
+                                                             reduction=tf.keras.losses.Reduction.NONE)(y_true=y_true, y_pred=y_pred)
+
+        y_true_rank = y_true.shape.rank
+        probs = tf.gather(probs, y_true, axis=-1, batch_dims=y_true_rank)
+
+        focal_modulation = (1 - probs) ** self.gamma
+        loss = focal_modulation * ce #* self.alpha
+        # loss = K.mean(fl_loss)
+
+        return loss
 
 def focal_loss(y_true, y_pred):
     gamma = 2.0
+    alpha= 0.25
     y_true = tf.squeeze(y_true, -1)
 
     probs = tf.nn.softmax(y_pred, axis=-1)
@@ -144,7 +162,7 @@ def focal_loss(y_true, y_pred):
     probs = tf.gather(probs, y_true, axis=-1, batch_dims=y_true_rank)
 
     focal_modulation = (1 - probs) ** gamma
-    fl_loss = focal_modulation * xent_loss
+    fl_loss = focal_modulation * xent_loss * alpha
 
     loss = tf.reduce_mean(fl_loss)
 

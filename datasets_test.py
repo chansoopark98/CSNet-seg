@@ -1,15 +1,16 @@
 import tensorflow as tf
 import tensorflow_datasets as tfds
+from utils.cityscape_colormap import color_map
 
 data_dir = './datasets/'
 image_size = (512, 1024)
 
 @tf.function
 def preprocess_valid(sample):
-    img = sample['image_left']
-    # labels = sample['segmentation_label']#
+    # img = sample['image_left']
+    labels = sample['segmentation_label']#
 
-    return (img)
+    return (labels)
 
 
 dataset = tfds.load('cityscapes/semantic_segmentation',
@@ -18,7 +19,7 @@ dataset = tfds.load('cityscapes/semantic_segmentation',
 dataset = dataset.map(preprocess_valid)
 dataset = dataset.batch(1)
 
-dataset = dataset.take(1)
+# dataset = dataset.take(1)
 
 # concat_img = tf.concat([img, labels], axis=-1)
 # concat_img = tf.image.random_crop(concat_img, (self.image_size[0], self.image_size[1], 4))
@@ -49,44 +50,73 @@ dataset = dataset.take(1)
 path = './experiment/'
 resize_path = './experiment/resize/'
 crop_path = './experiment/crop/'
-for x in dataset:
-    x = x[0]
-
-    tf.keras.preprocessing.image.save_img(path+"orininal"+'.png', x)
-
-    random_crop = tf.image.random_crop(x, (512, 1024, 3))
-    tf.keras.preprocessing.image.save_img(crop_path+"random_crop" + '.png', random_crop)
-
-    # random crop
-    random_brightness = tf.image.random_brightness(random_crop, max_delta=0.4)
-    tf.keras.preprocessing.image.save_img(crop_path +"random_brightness" + '.png', random_brightness)
-
-    random_contrast = tf.image.random_contrast(random_crop, lower=0.4, upper=0.41)
-    tf.keras.preprocessing.image.save_img(crop_path + "random_contrast" + '.png', random_contrast)
-
-    random_saturation = tf.image.random_saturation(random_crop, lower=0.4, upper=0.41)
-    tf.keras.preprocessing.image.save_img(crop_path + "random_saturation" + '.png', random_saturation)
-
-    flip_left_right = tf.image.flip_left_right(random_crop)
-    tf.keras.preprocessing.image.save_img(crop_path + "flip_left_right" + '.png', flip_left_right)
 
 
-    # random resize
+save_path= './checkpoints/labels/'
+batch_index = 1
+for pred in dataset:
 
-    resize = tf.image.resize(x, (512, 1024))
-    tf.keras.preprocessing.image.save_img(resize_path + "resize" + '.png', resize)
+    for i in range(len(pred)):
+        # metric.update_state(y[i], pred[i])
+        # buffer += metric.result().numpy()
 
-    random_brightness = tf.image.random_brightness(resize, max_delta=0.4)
-    tf.keras.preprocessing.image.save_img(resize_path +"random_brightness" + '.png', random_brightness)
+        r = pred[i]
+        g = pred[i]
+        b = pred[i]
 
-    random_contrast = tf.image.random_contrast(resize, lower=0.4, upper=0.41)
-    tf.keras.preprocessing.image.save_img(resize_path + "random_contrast" + '.png', random_contrast)
+        for j in range(20):
+            r = tf.where(tf.equal(r, j), color_map[j][0], r)
+            g = tf.where(tf.equal(g, j), color_map[j][1], g)
+            b = tf.where(tf.equal(b, j), color_map[j][2], b)
 
-    random_saturation = tf.image.random_saturation(resize, lower=0.4, upper=0.41)
-    tf.keras.preprocessing.image.save_img(resize_path + "random_saturation" + '.png', random_saturation)
+        # r = tf.expand_dims(r, axis=-1)
+        # g = tf.expand_dims(g, axis=-1)
+        # b = tf.expand_dims(b, axis=-1)
 
-    flip_left_right = tf.image.flip_left_right(resize)
-    tf.keras.preprocessing.image.save_img(resize_path + "flip_left_right" + '.png', flip_left_right)
+        rgb_img = tf.concat([r, g, b], axis=-1)
+
+        tf.keras.preprocessing.image.save_img(save_path+str(batch_index)+'.png', rgb_img)
+        # plt.imshow(rgb_img)
+        # plt.show()
+        batch_index += 1
+
+    # x = x[0]
+    #
+    # tf.keras.preprocessing.image.save_img(path+"orininal"+'.png', x)
+    #
+    # random_crop = tf.image.random_crop(x, (512, 1024, 3))
+    # tf.keras.preprocessing.image.save_img(crop_path+"random_crop" + '.png', random_crop)
+    #
+    # # random crop
+    # random_brightness = tf.image.random_brightness(random_crop, max_delta=0.4)
+    # tf.keras.preprocessing.image.save_img(crop_path +"random_brightness" + '.png', random_brightness)
+    #
+    # random_contrast = tf.image.random_contrast(random_crop, lower=0.4, upper=0.41)
+    # tf.keras.preprocessing.image.save_img(crop_path + "random_contrast" + '.png', random_contrast)
+    #
+    # random_saturation = tf.image.random_saturation(random_crop, lower=0.4, upper=0.41)
+    # tf.keras.preprocessing.image.save_img(crop_path + "random_saturation" + '.png', random_saturation)
+    #
+    # flip_left_right = tf.image.flip_left_right(random_crop)
+    # tf.keras.preprocessing.image.save_img(crop_path + "flip_left_right" + '.png', flip_left_right)
+    #
+    #
+    # # random resize
+    #
+    # resize = tf.image.resize(x, (512, 1024))
+    # tf.keras.preprocessing.image.save_img(resize_path + "resize" + '.png', resize)
+    #
+    # random_brightness = tf.image.random_brightness(resize, max_delta=0.4)
+    # tf.keras.preprocessing.image.save_img(resize_path +"random_brightness" + '.png', random_brightness)
+    #
+    # random_contrast = tf.image.random_contrast(resize, lower=0.4, upper=0.41)
+    # tf.keras.preprocessing.image.save_img(resize_path + "random_contrast" + '.png', random_contrast)
+    #
+    # random_saturation = tf.image.random_saturation(resize, lower=0.4, upper=0.41)
+    # tf.keras.preprocessing.image.save_img(resize_path + "random_saturation" + '.png', random_saturation)
+    #
+    # flip_left_right = tf.image.flip_left_right(resize)
+    # tf.keras.preprocessing.image.save_img(resize_path + "flip_left_right" + '.png', flip_left_right)
 
 
 

@@ -10,7 +10,7 @@ import time
 import os
 import tensorflow as tf
 from utils.get_flops import get_flops
-import tensorflow_addons as tfa
+# import tensorflow_addons as tfa
 # from utils.cityscape_colormap import class_weight
 # from utils.adamW import LearningRateScheduler, poly_decay
 # import tensorflow_addons
@@ -20,7 +20,7 @@ import tensorflow_addons as tfa
 tf.keras.backend.clear_session()
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=24)
+parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=1)
 parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=120)
 parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.001)
 parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.00001)
@@ -141,7 +141,7 @@ with mirrored_strategy.scope():
         model.load_weights(CHECKPOINT_DIR + weight_name + '.h5')
 
     model.summary()
-    # print(get_flops(model))
+    print(get_flops(model))
 
     history = model.fit(train_data,
             validation_data=valid_data,

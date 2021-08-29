@@ -1,8 +1,7 @@
 from tensorflow.keras.applications.imagenet_utils import preprocess_input
-from utils.augmentation import random_rescale_image_and_label, random_crop_or_pad_image_and_label
 import tensorflow_datasets as tfds
 import tensorflow as tf
-import tensorflow_addons as tfa
+# import tensorflow_addons as tfa
 
 AUTO = tf.data.experimental.AUTOTUNE
 

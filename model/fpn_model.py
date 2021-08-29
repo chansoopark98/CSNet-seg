@@ -109,11 +109,11 @@ def fpn_model(features, fpn_times=2, activation='swish', fpn_channels=64, mode='
         b1 = SepConv_BN(fpn_features[1], fpn_channels, 'rate6',
                         rate=atrous_rates[0], depth_activation=True, epsilon=1e-5)
         b2 = SepConv_BN(fpn_features[1], fpn_channels, 'rate12',
-                        rate=atrous_rates[0], depth_activation=True, epsilon=1e-5)
+                        rate=atrous_rates[1], depth_activation=True, epsilon=1e-5)
         b3 = SepConv_BN(fpn_features[1], fpn_channels, 'rate18',
-                        rate=atrous_rates[0], depth_activation=True, epsilon=1e-5)
+                        rate=atrous_rates[2], depth_activation=True, epsilon=1e-5)
 
-        fpn_x = Concatenate()([fpn_features[1], b1, b2, b3])
+        fpn_x = Concatenate()([x, fpn_features[1], b1, b2, b3])
 
 
         x = Conv2D(256, (1, 1), padding='same',
@@ -124,7 +124,13 @@ def fpn_model(features, fpn_times=2, activation='swish', fpn_channels=64, mode='
 
         x = UpSampling2D()(x)
 
-        x = Concatenate()([x, fpn_features[0]])
+        dec_skip2 = Conv2D(48, (1, 1), padding='same',
+                           use_bias=False, name='feature_projection0')(fpn_features[0])
+        dec_skip2 = BatchNormalization(
+            name='feature_projection0_BN', epsilon=1e-5)(dec_skip2)
+        dec_skip2 = Activation(activation)(dec_skip2)
+
+        x = Concatenate()([x, dec_skip2])
         x = Conv2D(256, (1, 1), padding='same',
                    use_bias=False)(x)
         x = BatchNormalization(epsilon=1e-5)(x)
@@ -132,7 +138,13 @@ def fpn_model(features, fpn_times=2, activation='swish', fpn_channels=64, mode='
 
         x = UpSampling2D()(x)
 
-        x = Concatenate()([x, skip1])
+        dec_skip1 = Conv2D(32, (1, 1), padding='same',
+                           use_bias=False, name='feature_projection1')(skip1)
+        dec_skip1 = BatchNormalization(
+            name='feature_projection1_BN', epsilon=1e-5)(dec_skip1)
+        dec_skip1 = Activation(activation)(dec_skip1)
+
+        x = Concatenate()([x, dec_skip1])
         x = SepConv_BN(x, 256, 'decoder_out1',
                        depth_activation=True, epsilon=1e-5)
         x = SepConv_BN(x, 256, 'decoder_out2',

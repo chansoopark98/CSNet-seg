@@ -20,7 +20,7 @@ import tensorflow_addons as tfa
 tf.keras.backend.clear_session()
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=16)
+parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=24)
 parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=120)
 parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.001)
 parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.00001)
@@ -99,7 +99,7 @@ with mirrored_strategy.scope():
 
     polyDecay = tf.keras.optimizers.schedules.PolynomialDecay(initial_learning_rate=base_lr,
                                                               decay_steps=EPOCHS,
-                                                              end_learning_rate=0.000001, power=0.9)
+                                                              end_learning_rate=0.00001, power=0.9)
 
     lr_scheduler = tf.keras.callbacks.LearningRateScheduler(polyDecay,verbose=1)
 
@@ -133,7 +133,7 @@ with mirrored_strategy.scope():
 
     model.compile(
         optimizer=optimizer,
-        loss=loss.focal_loss,
+        loss=loss.ce_loss,
         metrics=[mIoU])
 
     if LOAD_WEIGHT:

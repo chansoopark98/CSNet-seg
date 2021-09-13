@@ -2,7 +2,7 @@ from tensorflow.keras.callbacks import ReduceLROnPlateau, ModelCheckpoint
 from tensorflow.keras.mixed_precision import experimental as mixed_precision
 from utils.callbacks import Scalar_LR
 from classification.utils.load_datasets import GenerateDatasets
-from utils.metrics import MeanIOU
+from classification.utils.callbacks import CustomLearningRateScheduler, lr_schedule
 from classification.model.model_builder import seg_model_build
 from classification.model.loss import Loss
 import argparse
@@ -10,6 +10,7 @@ import time
 import os
 import tensorflow as tf
 from utils.get_flops import get_flops
+# LD_PRELOAD="/lib/x86_64-linux-gnu/libtcmalloc_minimal.so.4" python cls_train.py
 # import tensorflow_addons as tfa
 # from utils.cityscape_colormap import class_weight
 # from utils.adamW import LearningRateScheduler, poly_decay
@@ -20,9 +21,9 @@ from utils.get_flops import get_flops
 tf.keras.backend.clear_session()
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=1)
-parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=120)
-parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.001)
+parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=1024)
+parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=100)
+parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.1)
 parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.00001)
 parser.add_argument("--model_name",     type=str,   help="저장될 모델 이름",
                     default=str(time.strftime('%m%d', time.localtime(time.time()))))
@@ -92,9 +93,7 @@ with mirrored_strategy.scope():
 
     checkpoint_val_loss = ModelCheckpoint(CHECKPOINT_DIR + '_' + SAVE_MODEL_NAME + '_best_loss.h5',
                                           monitor='val_loss', save_best_only=True, save_weights_only=True, verbose=1)
-    checkpoint_val_miou = ModelCheckpoint(CHECKPOINT_DIR + '_' + SAVE_MODEL_NAME + '_best_miou.h5',
-                                          monitor='val_mean_iou', save_best_only=True, save_weights_only=True,
-                                          verbose=1, mode='max')
+
     testCallBack = Scalar_LR('test', TENSORBOARD_DIR)
     tensorboard = tf.keras.callbacks.TensorBoard(log_dir=TENSORBOARD_DIR, write_graph=True, write_images=True)
 
@@ -110,8 +109,8 @@ with mirrored_strategy.scope():
     if MIXED_PRECISION:
         optimizer = mixed_precision.LossScaleOptimizer(optimizer, loss_scale='dynamic')  # tf2.4.1 이전
 
-    mIoU = MeanIOU(20)
-    callback = [checkpoint_val_miou,  tensorboard, testCallBack, lr_scheduler]
+
+    callback = [tensorboard, testCallBack, CustomLearningRateScheduler(lr_schedule)]
 
     loss = Loss(BATCH_SIZE)
 
@@ -133,7 +132,7 @@ with mirrored_strategy.scope():
         model.load_weights(CHECKPOINT_DIR + weight_name + '.h5')
 
     model.summary()
-    print(get_flops(model))
+    # print(get_flops(model))
 
     history = model.fit(train_data,
             validation_data=valid_data,

@@ -258,6 +258,22 @@ def ddrnet_23_slim(input_shape=[1024,2048,3], layers_arg=[2, 2, 2, 2], num_class
     x_temp = layers.BatchNormalization()(x_temp)
     x = layers.Add()([x, x_temp])
 
+
+    # Low to High
+    x_temp = layers.Activation("relu")(layers_inside[3])
+    x_temp = layers.Conv2D(highres_planes, kernel_size=(1, 1), use_bias=False)(x_temp)
+    x_temp = layers.BatchNormalization()(x_temp)
+    x_temp = tf.image.resize(x_temp, (height_output, width_output))
+    x_ = layers.Add()([x_, x_temp])
+
+    # # layer 5
+    # # 5 High :: 1/8 -> 1/8
+    # x_ = layers.Activation("relu")(x_)
+    # x_ = make_layer(x_, bottleneck_block, highres_planes, highres_planes, 1, expansion=bottleneck_expansion)
+    # x = layers.Activation("relu")(x)
+    # # 5 Low :: 1/32 -> 1/64
+    # x = make_layer(x, bottleneck_block,  planes * 8, planes * 8, 1, stride=2, expansion=bottleneck_expansion)
+
     """
     for classification
     """
@@ -267,22 +283,6 @@ def ddrnet_23_slim(input_shape=[1024,2048,3], layers_arg=[2, 2, 2, 2], num_class
     # target_shape = (1, 1, 1024) if tf.keras.backend.image_data_format() == 'channels_last' else (filters, 1, 1)
     # x = layers.Reshape(target_shape)(x)
     x = layers.Dense(1000)(x)
-
-    # # Low to High
-    # x_temp = layers.Activation("relu")(layers_inside[3])
-    # x_temp = layers.Conv2D(highres_planes, kernel_size=(1, 1), use_bias=False)(x_temp)
-    # x_temp = layers.BatchNormalization()(x_temp)
-    # x_temp = tf.image.resize(x_temp, (height_output, width_output))
-    # x_ = layers.Add()([x_, x_temp])
-    #
-    # # layer 5
-    # # 5 High :: 1/8 -> 1/8
-    # x_ = layers.Activation("relu")(x_)
-    # x_ = make_layer(x_, bottleneck_block, highres_planes, highres_planes, 1, expansion=bottleneck_expansion)
-    # x = layers.Activation("relu")(x)
-    # # 5 Low :: 1/32 -> 1/64
-    # x = make_layer(x, bottleneck_block,  planes * 8, planes * 8, 1, stride=2, expansion=bottleneck_expansion)
-    #
 
     #
     # # Deep Aggregation Pyramid Pooling Module
@@ -316,16 +316,16 @@ def ddrnet_23_slim(input_shape=[1024,2048,3], layers_arg=[2, 2, 2, 2], num_class
 
     return model
 
-if __name__ == "__main__":
-    """## Model Compilation"""
-    INPUT_SHAPE = [1024, 2048, 3]
-    OUTPUT_CHANNELS = 19
-    with tf.device("cpu:0"):
-        # create model
-        ddrnet_model = ddrnet_23_slim( num_classes=OUTPUT_CHANNELS, input_shape =INPUT_SHAPE, )
-        optimizer = tf.keras.optimizers.SGD(momentum=0.9, lr=0.045)
-        # compile model
-        ddrnet_model.compile(loss=tf.keras.losses.CategoricalCrossentropy(from_logits=False), optimizer=optimizer,
-                          metrics=['accuracy'])
-        # show model summary in output
-        ddrnet_model.summary()
+# if __name__ == "__main__":
+#     """## Model Compilation"""
+#     INPUT_SHAPE = [1024, 2048, 3]
+#     OUTPUT_CHANNELS = 19
+#     with tf.device("cpu:0"):
+#         # create model
+#         ddrnet_model = ddrnet_23_slim( num_classes=OUTPUT_CHANNELS, input_shape =INPUT_SHAPE, )
+#         optimizer = tf.keras.optimizers.SGD(momentum=0.9, lr=0.045)
+#         # compile model
+#         ddrnet_model.compile(loss=tf.keras.losses.CategoricalCrossentropy(from_logits=False), optimizer=optimizer,
+#                           metrics=['accuracy'])
+#         # show model summary in output
+#         ddrnet_model.summary()

@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import tensorflow as tf
 import tensorflow_datasets as tfds
 from utils.cityscape_colormap import color_map
@@ -7,13 +8,13 @@ image_size = (512, 1024)
 
 @tf.function
 def preprocess_valid(sample):
-    # img = sample['image_left']
-    labels = sample['segmentation_label']#
 
-    return (labels)
+    img = sample['image']
+
+    return (img)
 
 
-dataset = tfds.load('cityscapes/semantic_segmentation',
+dataset = tfds.load('imagenet2012',
                                data_dir=data_dir, split='validation')
 
 dataset = dataset.map(preprocess_valid)
@@ -55,30 +56,11 @@ crop_path = './experiment/crop/'
 save_path= './checkpoints/labels/'
 batch_index = 1
 for pred in dataset:
+    img = tf.image.resize_with_crop_or_pad(pred, 224, 224)
+    
+    plt.imshow((img[0]))
+    plt.show()
 
-    for i in range(len(pred)):
-        # metric.update_state(y[i], pred[i])
-        # buffer += metric.result().numpy()
-
-        r = pred[i]
-        g = pred[i]
-        b = pred[i]
-
-        for j in range(20):
-            r = tf.where(tf.equal(r, j), color_map[j][0], r)
-            g = tf.where(tf.equal(g, j), color_map[j][1], g)
-            b = tf.where(tf.equal(b, j), color_map[j][2], b)
-
-        # r = tf.expand_dims(r, axis=-1)
-        # g = tf.expand_dims(g, axis=-1)
-        # b = tf.expand_dims(b, axis=-1)
-
-        rgb_img = tf.concat([r, g, b], axis=-1)
-
-        tf.keras.preprocessing.image.save_img(save_path+str(batch_index)+'.png', rgb_img)
-        # plt.imshow(rgb_img)
-        # plt.show()
-        batch_index += 1
 
     # x = x[0]
     #

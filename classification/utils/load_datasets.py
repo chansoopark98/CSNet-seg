@@ -61,7 +61,7 @@ class GenerateDatasets:
         #     img = tfa.image.sharpness(img, factor=0.5)
         if tf.random.uniform([]) > 0.5:
             img = tf.image.flip_left_right(img)
-            labels = tf.image.flip_left_right(labels)
+            # labels = tf.image.flip_left_right(labels)
         # # random vertical flip
         # if tf.random.uniform([]) > 0.5:
         #     img = tf.image.flip_up_down(img)
@@ -74,15 +74,8 @@ class GenerateDatasets:
     def preprocess(self, sample):
         img = tf.cast(sample['image'], dtype=tf.float32)
         label = tf.cast(sample['label'], dtype=tf.int64)
-        # label = tf.one_hot(label[0], 20)
-        # label = tf.reduce_max(tf.one_hot(label, 20, dtype=tf.int32), axis=0)
-        # tf.print(label, output_stream=sys.stdout, summarize=-1)
 
-        concat_img = tf.concat([img, label], axis=-1)
-        concat_img = tf.image.random_crop(concat_img, (self.image_size[0], self.image_size[1], 4))
-
-        img = concat_img[:, :, :3]
-        label = concat_img[:, :, 3:]
+        img = tf.image.resize_with_crop_or_pad(img, self.image_size[0], self.image_size[1])
 
         img = preprocess_input(img, mode='tf')
 

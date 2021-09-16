@@ -1,6 +1,7 @@
 import tensorflow as tf
 import tensorflow.keras.layers as layers
 import tensorflow.keras.models as models
+import tensorflow_addons as tfa
 
 def conv3x3(out_planes, stride=1):
     return layers.Conv2D(kernel_size=(3,3), filters=out_planes, strides=stride, padding="same",
@@ -266,46 +267,40 @@ def ddrnet_23_slim(input_shape=[1024,2048,3], layers_arg=[2, 2, 2, 2], num_class
     x_temp = tf.image.resize(x_temp, (height_output, width_output))
     x_ = layers.Add()([x_, x_temp])
 
-    # # layer 5
-    # # 5 High :: 1/8 -> 1/8
-    # x_ = layers.Activation("relu")(x_)
-    # x_ = make_layer(x_, bottleneck_block, highres_planes, highres_planes, 1, expansion=bottleneck_expansion)
-    # x = layers.Activation("relu")(x)
-    # # 5 Low :: 1/32 -> 1/64
-    # x = make_layer(x, bottleneck_block,  planes * 8, planes * 8, 1, stride=2, expansion=bottleneck_expansion)
 
-    """
-    for classification
-    """
 
-    x = layers.Conv2D(1024, 1, 1, padding='same')(x)
-    x = layers.GlobalAveragePooling2D()(x)
-    # target_shape = (1, 1, 1024) if tf.keras.backend.image_data_format() == 'channels_last' else (filters, 1, 1)
-    # x = layers.Reshape(target_shape)(x)
-    x = layers.Dense(1000)(x)
+    # layer 5
+    # 5 High :: 1/8 -> 1/8
+    # layer5_
+    x_ = layers.Activation("relu")(x_)
+    x_ = make_layer(x_, bottleneck_block, highres_planes, highres_planes, 1, expansion=bottleneck_expansion)
 
-    #
-    # # Deep Aggregation Pyramid Pooling Module
-    # x = DAPPPM(x, spp_planes, planes * 4)
-    #
-    # # resize from 1/64 to 1/8
-    # x = tf.image.resize(x, (height_output, width_output))
-    #
-    # x_ = layers.Add()([x, x_])
-    #
-    # x_ = segmentation_head( (x_), head_planes, num_classes, scale_factor)
-    #
-    # # apply softmax at the output layer
-    # x_ = tf.nn.softmax(x_)
-    #
-    if augment:
-        x_extra = segmentation_head( temp_output, head_planes, num_classes, scale_factor) # without scaling
-        x_extra = tf.nn.softmax(x_extra)
-        model_output = [x_, x_extra]
-    else:
-        model_output = x
+    # relu
+    x_ = layers.Activation("relu")(x_)
+
+    # down5
+    x_ = layers.Conv2D(planes * 8, kernel_size=3, strides=2, padding='same', use_bias=False)(x_)
+    x_ = layers.BatchNormalization()(x_)
+    x_ = layers.Activation("relu")(x_)
+    x_ = layers.Conv2D(planes * 16, kernel_size=3, strides=2, padding='same', use_bias=False)(x_)
+    x_ = layers.BatchNormalization()(x_)
+
+
+    x = layers.Activation("relu")(x)
+    # 5 Low :: 1/32 -> 1/64
+    x = make_layer(x, bottleneck_block,  planes * 8, planes * 8, 1, stride=1, expansion=bottleneck_expansion)
+
+    model_output = layers.Add()([x, x_])
+
+    model_output = layers.Conv2D(1024, kernel_size=1, strides=1, padding='same', use_bias=False)(model_output)
+    model_output = layers.BatchNormalization()(model_output)
+    model_output = layers.Activation("relu")(model_output)
+    model_output = tfa.layers.AdaptiveAveragePooling2D([1, 1])(model_output)
+    model_output = layers.Dense(1000)(model_output)
+
 
     model = models.Model(inputs=[x_in], outputs=[model_output])
+
 
     # set weight initializers
     for layer in model.layers:

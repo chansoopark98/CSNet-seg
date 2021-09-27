@@ -119,10 +119,8 @@ class Seg_loss:
         Returns:
 
         """
-        y_true = tf.squeeze(y_true, axis=-1)
-        # loss  =tf.nn.sparse_softmax_cross_entropy_with_logits(y_true, y_pred)
-        # loss = tf.reduce_mean(loss)
-        #
+
+        # original
         loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True,
                                                              reduction=tf.keras.losses.Reduction.NONE)(y_true=y_true, y_pred=y_pred)
 

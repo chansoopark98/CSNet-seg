@@ -1,138 +1,172 @@
-import matplotlib.pyplot as plt
-import tensorflow as tf
+from tensorflow.keras.applications.imagenet_utils import preprocess_input
 import tensorflow_datasets as tfds
-from utils.cityscape_colormap import color_map
+import tensorflow as tf
+# import tensorflow_addons as tfa
 
-data_dir = './datasets/'
-image_size = (512, 1024)
-
-@tf.function
-def preprocess_valid(sample):
-
-    img = sample['image']
-
-    return (img)
+AUTO = tf.data.experimental.AUTOTUNE
 
 
-dataset = tfds.load('imagenet2012',
-                               data_dir=data_dir, split='validation')
+class CityScapes:
+    def __init__(self, data_dir, image_size, batch_size, mode):
+        """
+        Args:
+            data_dir: 데이터셋 상대 경로 ( default : './datasets/' )
+            image_size: 백본에 따른 이미지 해상도 크기
+            batch_size: 배치 사이즈 크기
+        """
+        self.data_dir = data_dir
+        self.image_size = image_size
+        self.batch_size = batch_size
 
-dataset = dataset.map(preprocess_valid)
-dataset = dataset.batch(1)
-
-# dataset = dataset.take(1)
-
-# concat_img = tf.concat([img, labels], axis=-1)
-# concat_img = tf.image.random_crop(concat_img, (self.image_size[0], self.image_size[1], 4))
-#
-# img = concat_img[:, :, :3]
-# labels = concat_img[:, :, 3:]
-#
-# img = tf.cast(img, dtype=tf.float32)
-# labels = tf.cast(labels, dtype=tf.int64)
-#
-# if tf.random.uniform([]) > 0.5:
-#     # img = tf.image.random_brightness(img, max_delta=0.4)
-#     img = tf.image.random_brightness(img, max_delta=0.1)
-# if tf.random.uniform([]) > 0.5:
-#     # img = tf.image.random_contrast(img, lower=0.7, upper=1.4)
-#     img = tf.image.random_contrast(img, lower=0.1, upper=0.8)
-# # if tf.random.uniform([]) > 0.5:
-# #     img = tf.image.random_hue(img, max_delta=0.4)
-# if tf.random.uniform([]) > 0.5:
-#     # img = tf.image.random_saturation(img, lower=0.7, upper=1.4)
-#     img = tf.image.random_saturation(img, lower=0.1, upper=0.8)
-# # if tf.random.uniform([]) > 0.5:
-# #     img = tfa.image.sharpness(img, factor=0.5)
-#
-# if tf.random.uniform([]) > 0.5:
-#     img = tf.image.flip_left_right(img)
-#     labels = tf.image.flip_left_right(labels)
-path = './experiment/'
-resize_path = './experiment/resize/'
-crop_path = './experiment/crop/'
+        if mode == 'train':
+            self.train_data, self.number_train = self._load_train_datasets()
+        else:
+            self.valid_data, self.number_valid = self._load_valid_datasets()
 
 
-save_path= './checkpoints/labels/'
-batch_index = 1
-for pred in dataset:
-    img = tf.image.resize_with_crop_or_pad(pred, 224, 224)
-    
-    plt.imshow((img[0]))
-    plt.show()
+    def _load_valid_datasets(self):
+        valid_data = tfds.load('cityscapes/semantic_segmentation',
+                               data_dir=self.data_dir, split='validation')
+
+        number_valid = valid_data.reduce(0, lambda x, _: x + 1).numpy()
+        # number_valid = 500
+        print("검증 데이터 개수:", number_valid)
+
+        return valid_data, number_valid
+
+    def _load_train_datasets(self):
+        train_data = tfds.load('cityscapes/semantic_segmentation',
+                               data_dir=self.data_dir, split='train')
 
 
-    # x = x[0]
-    #
-    # tf.keras.preprocessing.image.save_img(path+"orininal"+'.png', x)
-    #
-    # random_crop = tf.image.random_crop(x, (512, 1024, 3))
-    # tf.keras.preprocessing.image.save_img(crop_path+"random_crop" + '.png', random_crop)
-    #
-    # # random crop
-    # random_brightness = tf.image.random_brightness(random_crop, max_delta=0.4)
-    # tf.keras.preprocessing.image.save_img(crop_path +"random_brightness" + '.png', random_brightness)
-    #
-    # random_contrast = tf.image.random_contrast(random_crop, lower=0.4, upper=0.41)
-    # tf.keras.preprocessing.image.save_img(crop_path + "random_contrast" + '.png', random_contrast)
-    #
-    # random_saturation = tf.image.random_saturation(random_crop, lower=0.4, upper=0.41)
-    # tf.keras.preprocessing.image.save_img(crop_path + "random_saturation" + '.png', random_saturation)
-    #
-    # flip_left_right = tf.image.flip_left_right(random_crop)
-    # tf.keras.preprocessing.image.save_img(crop_path + "flip_left_right" + '.png', flip_left_right)
-    #
-    #
-    # # random resize
-    #
-    # resize = tf.image.resize(x, (512, 1024))
-    # tf.keras.preprocessing.image.save_img(resize_path + "resize" + '.png', resize)
-    #
-    # random_brightness = tf.image.random_brightness(resize, max_delta=0.4)
-    # tf.keras.preprocessing.image.save_img(resize_path +"random_brightness" + '.png', random_brightness)
-    #
-    # random_contrast = tf.image.random_contrast(resize, lower=0.4, upper=0.41)
-    # tf.keras.preprocessing.image.save_img(resize_path + "random_contrast" + '.png', random_contrast)
-    #
-    # random_saturation = tf.image.random_saturation(resize, lower=0.4, upper=0.41)
-    # tf.keras.preprocessing.image.save_img(resize_path + "random_saturation" + '.png', random_saturation)
-    #
-    # flip_left_right = tf.image.flip_left_right(resize)
-    # tf.keras.preprocessing.image.save_img(resize_path + "flip_left_right" + '.png', flip_left_right)
+        number_train = train_data.reduce(0, lambda x, _: x + 1).numpy()
+        # number_train = 2975
+        print("학습 데이터 개수", number_train)
+
+        return train_data, number_train
+
+
+    def load_test(self, sample):
+        img = sample['image_left']
+        labels = sample['segmentation_label']
+
+        # img = tf.image.resize(img, (512, 1024))
+        # labels = tf.image.resize(labels, (512, 1024))
+
+        img = tf.cast(img, dtype=tf.float32)
+        labels = tf.cast(labels, dtype=tf.int64)
+
+
+        img = preprocess_input(img, mode='torch')
+
+
+        return (img, labels)
+
+    @tf.function
+    def preprocess(self, sample):
+        id = sample['image_id']
 
 
 
-#
-# total = 0
-# for i in range(len(counts)):
-#     total+= counts[i]
-# for i in range(len(counts)):
-#     counts[i] = 1 / tf.math.log(1.02+(counts[i]/total))
-#
-# for i in range(len(counts)):
-#     print(counts[i])
-# class_weight = 1 / np.log(1.02 + (frequency / total_frequency))
+        return (id)
+
+    @tf.function
+    def preprocess_valid(self, sample):
+        img = sample['image_left']
+        labels = sample['segmentation_label']
 
 
-# class_weight = [
-#     2.8543523840037177,
-#     1.3501380011580169,
-#     4.970495934756391,
-#     1.8887107725102839,
-#     15.066038400152298,
-#     13.837913138463685,
-#     12.277478720550748,
-#     18.378001839340588,
-#     15.71545310733969,
-#     2.4582169536505725,
-#     12.555716676189862,
-#     6.588000419104747,
-#     12.318122119569152,
-#     19.072811312045705,
-#     4.500762248314975,
-#     17.856449045143542,
-#     18.13687989115995,
-#     18.157941306594143,
-#     19.434675017727237,
-#     16.688571815264762
-# ]
+        concat_img = tf.concat([img, labels], axis=-1)
+        concat_img = tf.image.random_crop(concat_img, (self.image_size[0], self.image_size[1], 4))
+
+        img = concat_img[:, :, :3]
+        labels = concat_img[:, :, 3:]
+        #
+        # img = tf.image.resize(img, (512, 1024), method=tf.image.ResizeMethod.BILINEAR)
+        # labels = tf.image.resize(labels, (512, 1024), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+
+        img = tf.cast(img, dtype=tf.float32)
+        labels = tf.cast(labels, dtype=tf.int64)
+
+        img = preprocess_input(img, mode='torch')
+
+        return (img, labels)
+
+
+
+    @tf.function
+    def augmentation(self, img, labels):
+
+        if tf.random.uniform([]) > 0.5:
+            img = tf.image.flip_left_right(img)
+            labels = tf.image.flip_left_right(labels)
+
+
+        return (img, labels)
+
+    def get_trainData(self, train_data):
+        # num_parallel_calls=AUTO
+        train_data = train_data.shuffle(buffer_size=1000, reshuffle_each_iteration=True)
+        # train_data = train_data.map(self.augmentation, num_parallel_calls=AUTO)
+        # train_data = train_data.prefetch(AUTO)
+        train_data = train_data.repeat()
+        # train_data = train_data.padded_batch(self.batch_size)
+
+        return train_data
+
+    def get_validData(self, valid_data):
+        valid_data = valid_data.map(self.preprocess_valid, num_parallel_calls=AUTO)
+        valid_data = valid_data.padded_batch(self.batch_size).prefetch(AUTO)
+        return valid_data
+
+    def get_testData(self, valid_data):
+        valid_data = valid_data.map(self.load_test)
+        valid_data = valid_data.batch(self.batch_size).prefetch(AUTO)
+        return valid_data
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--batch_size", type=int, help="배치 사이즈값 설정", default=1)
+    parser.add_argument("--epoch", type=int, help="에폭 설정", default=200)
+    parser.add_argument("--lr", type=float, help="Learning rate 설정", default=0.01)
+    parser.add_argument("--weight_decay", type=float, help="Weight Decay 설정", default=0.0005)
+
+    parser.add_argument("--dataset_dir", type=str, help="데이터셋 다운로드 디렉토리 설정", default='./datasets/')
+    parser.add_argument("--checkpoint_dir", type=str, help="모델 저장 디렉토리 설정", default='./checkpoints/')
+    parser.add_argument("--tensorboard_dir", type=str, help="텐서보드 저장 경로", default='tensorboard')
+    parser.add_argument("--use_weightDecay", type=bool, help="weightDecay 사용 유무", default=True)
+    parser.add_argument("--load_weight", type=bool, help="가중치 로드", default=False)
+    parser.add_argument("--mixed_precision", type=bool, help="mixed_precision 사용", default=True)
+    parser.add_argument("--distribution_mode", type=bool, help="분산 학습 모드 설정 mirror or multi", default='mirror')
+
+    args = parser.parse_args()
+    WEIGHT_DECAY = args.weight_decay
+    BATCH_SIZE = args.batch_size
+    EPOCHS = args.epoch
+    base_lr = args.lr
+    SAVE_MODEL_NAME = 'test'
+    DATASET_DIR = args.dataset_dir
+    CHECKPOINT_DIR = args.checkpoint_dir
+    TENSORBOARD_DIR = args.tensorboard_dir
+    IMAGE_SIZE = (1024, 1024)
+    # IMAGE_SIZE = (None, None)
+    USE_WEIGHT_DECAY = args.use_weightDecay
+    LOAD_WEIGHT = args.load_weight
+    MIXED_PRECISION = args.mixed_precision
+    DISTRIBUTION_MODE = args.distribution_mode
+
+    train_dataset_config = CityScapes(DATASET_DIR, IMAGE_SIZE, BATCH_SIZE, mode='train')
+    train_data = train_dataset_config.get_trainData(train_dataset_config.train_data)
+
+
+    buffer = ''
+    id_list = []
+    stack = 0
+    for id in train_data.take(2975):
+        if id in id_list:
+            print(id)
+            stack+=1
+        id_list.append(id)
+
+    print(stack)

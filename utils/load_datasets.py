@@ -112,34 +112,29 @@ class CityScapes:
     def augmentation(self, img, labels):
 
 
-        if tf.random.uniform([]) > 0.5:
-            img = tf.image.random_brightness(img, max_delta=0.4)
-            # img = tf.image.random_brightness(img, max_delta=0.1)
-        if tf.random.uniform([]) > 0.5:
-            img = tf.image.random_contrast(img, lower=0.7, upper=1.4)
-            # img = tf.image.random_contrast(img, lower=0.1, upper=0.8)
-        if tf.random.uniform([]) > 0.5:
-            img = tf.image.random_hue(img, max_delta=0.4)
-        if tf.random.uniform([]) > 0.5:
-            img = tf.image.random_saturation(img, lower=0.7, upper=1.4)
-            # img = tf.image.random_saturation(img, lower=0.1, upper=0.8)
         # if tf.random.uniform([]) > 0.5:
-        #     img = tfa.image.sharpness(img, factor=0.5)
-
-
+        #     img = tf.image.random_brightness(img, max_delta=0.4)
+        #     # img = tf.image.random_brightness(img, max_delta=0.1)
+        # if tf.random.uniform([]) > 0.5:
+        #     img = tf.image.random_contrast(img, lower=0.7, upper=1.4)
+        #     # img = tf.image.random_contrast(img, lower=0.1, upper=0.8)
+        # if tf.random.uniform([]) > 0.5:
+        #     img = tf.image.random_hue(img, max_delta=0.4)
+        # if tf.random.uniform([]) > 0.5:
+        #     img = tf.image.random_saturation(img, lower=0.7, upper=1.4)
+        #     # img = tf.image.random_saturation(img, lower=0.1, upper=0.8)
+        # # if tf.random.uniform([]) > 0.5:
+        # #     img = tfa.image.sharpness(img, factor=0.5)
         if tf.random.uniform([]) > 0.5:
             img = tf.image.flip_left_right(img)
             labels = tf.image.flip_left_right(labels)
-        # random vertical flip
-        if tf.random.uniform([]) > 0.5:
-            img = tf.image.flip_up_down(img)
-            labels = tf.image.flip_up_down(labels)
+
 
         return (img, labels)
 
     def get_trainData(self, train_data):
         # num_parallel_calls=AUTO
-        train_data = train_data.shuffle(buffer_size=1000)
+        train_data = train_data.shuffle(buffer_size=1000, reshuffle_each_iteration=True)
         train_data = train_data.map(self.preprocess, num_parallel_calls=AUTO)
         train_data = train_data.map(self.augmentation, num_parallel_calls=AUTO)
         train_data = train_data.prefetch(AUTO)

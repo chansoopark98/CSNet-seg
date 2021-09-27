@@ -1,9 +1,10 @@
 from tensorflow.keras.callbacks import ReduceLROnPlateau, ModelCheckpoint
 from tensorflow.keras.mixed_precision import experimental as mixed_precision
+from classification.model.model_builder import seg_model_build
 from utils.callbacks import Scalar_LR
 from utils.load_datasets import CityScapes
 from utils.metrics import MeanIOU
-from model.model_builder import seg_model_build
+# from model.model_builder import seg_model_build
 from model.loss import Seg_loss
 import argparse
 import time
@@ -20,16 +21,16 @@ from utils.get_flops import get_flops
 tf.keras.backend.clear_session()
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=1)
-parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=120)
-parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.001)
-parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.00001)
+parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=64)
+parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=200)
+parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.01)
+parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.0005)
 parser.add_argument("--model_name",     type=str,   help="저장될 모델 이름",
                     default=str(time.strftime('%m%d', time.localtime(time.time()))))
 parser.add_argument("--dataset_dir",    type=str,   help="데이터셋 다운로드 디렉토리 설정", default='./datasets/')
 parser.add_argument("--checkpoint_dir", type=str,   help="모델 저장 디렉토리 설정", default='./checkpoints/')
 parser.add_argument("--tensorboard_dir",  type=str,   help="텐서보드 저장 경로", default='tensorboard')
-parser.add_argument("--use_weightDecay",  type=bool,  help="weightDecay 사용 유무", default=False)
+parser.add_argument("--use_weightDecay",  type=bool,  help="weightDecay 사용 유무", default=True)
 parser.add_argument("--load_weight",  type=bool,  help="가중치 로드", default=False)
 parser.add_argument("--mixed_precision",  type=bool,  help="mixed_precision 사용", default=True)
 parser.add_argument("--distribution_mode",  type=bool,  help="분산 학습 모드 설정 mirror or multi", default='mirror')
@@ -43,7 +44,7 @@ SAVE_MODEL_NAME = args.model_name
 DATASET_DIR = args.dataset_dir
 CHECKPOINT_DIR = args.checkpoint_dir
 TENSORBOARD_DIR = args.tensorboard_dir
-IMAGE_SIZE = (512, 1024)
+IMAGE_SIZE = (1024, 1024)
 # IMAGE_SIZE = (None, None)
 USE_WEIGHT_DECAY = args.use_weightDecay
 LOAD_WEIGHT = args.load_weight
@@ -70,8 +71,8 @@ else:
 with mirrored_strategy.scope():
     print("Number of devices: {}".format(mirrored_strategy.num_replicas_in_sync))
 
-    TRAIN_INPUT_IMAGE_SIZE = (512, 1024)
-    VALID_INPUT_IMAGE_SIZE = (512, 1024)
+    TRAIN_INPUT_IMAGE_SIZE = IMAGE_SIZE
+    VALID_INPUT_IMAGE_SIZE = IMAGE_SIZE
     # VALID_INPUT_IMAGE_SIZE = (1024, 2048)
     train_dataset_config = CityScapes(DATASET_DIR, TRAIN_INPUT_IMAGE_SIZE, BATCH_SIZE, mode='train')
     valid_dataset_config = CityScapes(DATASET_DIR, VALID_INPUT_IMAGE_SIZE, BATCH_SIZE, mode='validation')
@@ -99,7 +100,7 @@ with mirrored_strategy.scope():
 
     polyDecay = tf.keras.optimizers.schedules.PolynomialDecay(initial_learning_rate=base_lr,
                                                               decay_steps=EPOCHS,
-                                                              end_learning_rate=0.00001, power=0.9)
+                                                              end_learning_rate=0.0, power=0.9)
 
     lr_scheduler = tf.keras.callbacks.LearningRateScheduler(polyDecay,verbose=1)
 
@@ -107,8 +108,8 @@ with mirrored_strategy.scope():
     # lr_scheduler = LearningRateScheduler(poly_lr, BATCH_SIZE, False, steps_per_epoch, verbose=1)
 
 
-    optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
-    # optimizer = tf.keras.optimizers.SGD(learning_rate=base_lr, momentum=0.9)
+    # optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
+    optimizer = tf.keras.optimizers.SGD(learning_rate=base_lr, momentum=0.9)
     # optimizer = tf.keras.optimizers.Nadam(learning_rate=base_lr)
 
     # adamW = tfa.optimizers.extend_with_decoupled_weight_decay(tf.keras.optimizers.Adam)
@@ -122,14 +123,16 @@ with mirrored_strategy.scope():
 
     loss = Seg_loss(BATCH_SIZE)
 
-    model = seg_model_build(image_size=IMAGE_SIZE)
+    model = seg_model_build(image_size=IMAGE_SIZE, mode='seg')
 
     if USE_WEIGHT_DECAY:
-        regularizer = tf.keras.regularizers.l2(WEIGHT_DECAY / 2)
+        regularizer = tf.keras.regularizers.l2(WEIGHT_DECAY)
         for layer in model.layers:
             for attr in ['kernel_regularizer']:
                 if hasattr(layer, attr) and layer.trainable:
                     setattr(layer, attr, regularizer)
+
+
 
     model.compile(
         optimizer=optimizer,
@@ -141,7 +144,7 @@ with mirrored_strategy.scope():
         model.load_weights(CHECKPOINT_DIR + weight_name + '.h5')
 
     model.summary()
-    print(get_flops(model))
+    # print(get_flops(model))
 
     history = model.fit(train_data,
             validation_data=valid_data,

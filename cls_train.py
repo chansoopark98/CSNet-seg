@@ -9,6 +9,7 @@ import argparse
 import time
 import os
 import tensorflow as tf
+import tensorflow_addons as tfa
 from utils.get_flops import get_flops
 # LD_PRELOAD="/lib/x86_64-linux-gnu/libtcmalloc_minimal.so.4" python cls_train.py
 # import tensorflow_addons as tfa
@@ -64,16 +65,12 @@ if DISTRIBUTION_MODE == 'multi':
         tf.distribute.experimental.CollectiveCommunication.NCCL)
 
 else:
-    # mirrored_strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
-    mirrored_strategy = tf.distribute.MirroredStrategy()
+    mirrored_strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
+    # mirrored_strategy = tf.distribute.MirroredStrategy()
 
 
 with mirrored_strategy.scope():
     print("Number of devices: {}".format(mirrored_strategy.num_replicas_in_sync))
-
-    TRAIN_INPUT_IMAGE_SIZE = (224, 224)
-    VALID_INPUT_IMAGE_SIZE = (224, 224)
-    # VALID_INPUT_IMAGE_SIZE = (1024, 2048)
 
     train_dataset_config = GenerateDatasets(mode='train', data_dir=DATASET_DIR, image_size=IMAGE_SIZE, batch_size=BATCH_SIZE)
     valid_dataset_config = GenerateDatasets(mode='validation', data_dir=DATASET_DIR, image_size=IMAGE_SIZE, batch_size=BATCH_SIZE)
@@ -110,6 +107,8 @@ with mirrored_strategy.scope():
 
     # optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
     optimizer = tf.keras.optimizers.SGD(momentum=0.9, learning_rate=base_lr)
+    # SGDW = tfa.optimizers.extend_with_decoupled_weight_decay(tf.keras.optimizers.SGD)
+    # optimizer = SGDW(weight_decay=WEIGHT_DECAY, learning_rate=base_lr, momentum=0.9)
 
     if MIXED_PRECISION:
         optimizer = mixed_precision.LossScaleOptimizer(optimizer, loss_scale='dynamic')  # tf2.4.1 이전
@@ -122,7 +121,7 @@ with mirrored_strategy.scope():
     model = seg_model_build(image_size=IMAGE_SIZE)
 
     if USE_WEIGHT_DECAY:
-        regularizer = tf.keras.regularizers.l2(WEIGHT_DECAY / 2)
+        regularizer = tf.keras.regularizers.l2(WEIGHT_DECAY)
         for layer in model.layers:
             for attr in ['kernel_regularizer']:
                 if hasattr(layer, attr) and layer.trainable:
@@ -131,9 +130,9 @@ with mirrored_strategy.scope():
     model.compile(
         optimizer=optimizer,
         loss=loss.sparse_categorical_loss,
-        metrics=['accuracy'])
+        metrics=['accuracy', tf.keras.metrics.SparseTopKCategoricalAccuracy(k=5, name='top5')])
     if LOAD_WEIGHT:
-        weight_name = '_0811_best_miou'
+        weight_name = '_0916_best_backbone_accuracy'
         model.load_weights(CHECKPOINT_DIR + weight_name + '.h5')
 
     model.summary()

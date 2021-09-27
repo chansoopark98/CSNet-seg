@@ -1,7 +1,8 @@
 import tensorflow_datasets as tfds
 import tensorflow as tf
+import tensorflow_addons as tfa
 from tensorflow.keras.applications.imagenet_utils import preprocess_input
-import sys
+import numpy as np
 AUTO = tf.data.experimental.AUTOTUNE
 
 class GenerateDatasets:
@@ -46,52 +47,76 @@ class GenerateDatasets:
 
     @tf.function
     def augmentation(self, img, labels):
-        if tf.random.uniform([]) > 0.5:
-            img = tf.image.random_brightness(img, max_delta=0.4)
-            # img = tf.image.random_brightness(img, max_delta=0.1)
-        if tf.random.uniform([]) > 0.5:
-            img = tf.image.random_contrast(img, lower=0.7, upper=1.4)
-            # img = tf.image.random_contrast(img, lower=0.1, upper=0.8)
-        # if tf.random.uniform([]) > 0.5:
-            img = tf.image.random_hue(img, max_delta=0.4)
-        if tf.random.uniform([]) > 0.5:
-            img = tf.image.random_saturation(img, lower=0.7, upper=1.4)
-            # img = tf.image.random_saturation(img, lower=0.1, upper=0.8)
-        # if tf.random.uniform([]) > 0.5:
-        #     img = tfa.image.sharpness(img, factor=0.5)
-        if tf.random.uniform([]) > 0.5:
+        if tf.random.uniform([], 0, 1) > 0.75:
+            img = tf.image.random_hue(img, 0.08)
+            img = tf.image.random_saturation(img, 0.6, 1.6)
+            img = tf.image.random_brightness(img, 0.05)
+            img = tf.image.random_contrast(img, 0.7, 1.3)
+
+        if tf.random.uniform([], 0, 1) > 0.5:
             img = tf.image.flip_left_right(img)
-            # labels = tf.image.flip_left_right(labels)
-        # # random vertical flip
-        # if tf.random.uniform([]) > 0.5:
-        #     img = tf.image.flip_up_down(img)
-        #     labels = tf.image.flip_up_down(labels)
+
+        if tf.random.uniform([], 0, 1) > 0.5:
+            img = self.zoom(img)
+
+        if tf.random.uniform([], 0, 1) > 0.5:
+            img = self.rotate(img)
+
+        img = preprocess_input(img, mode='torch')
 
         return (img, labels)
 
+    @tf.function
+    def zoom(self, x, scale_min=0.6, scale_max=1.6):
+        h, w, _ = x.shape
+        scale = tf.random.uniform([], scale_min, scale_max)
+        nh = h * scale
+        nw = w * scale
+        x = tf.image.resize(x, (nh, nw))
+        x = tf.image.resize_with_crop_or_pad(x, h, w)
+        return x
+
+    @tf.function
+    def rotate(self, x, angle=(-45, 45)):
+        angle = tf.random.uniform([], angle[0], angle[1], tf.float32)
+        theta = np.pi * angle / 180
+
+        x = tfa.image.rotate(x, theta)
+        return x
 
     @tf.function
     def preprocess(self, sample):
-        img = tf.cast(sample['image'], dtype=tf.float32)
-        label = tf.cast(sample['label'], dtype=tf.int64)
+        img = sample['image']
+        label = sample['label']
 
-        img = tf.image.resize_with_crop_or_pad(img, self.image_size[0], self.image_size[1])
+        # img = tf.image.random_crop(img, (self.image_size[0], self.image_size[1], 3))
+        img = tf.image.resize(img, (self.image_size[0], self.image_size[1]))
 
-        img = preprocess_input(img, mode='tf')
+        return (img, label)
+
+    @tf.function
+    def preprocess_valid(self, sample):
+        img = sample['image']
+        label = sample['label']
+
+        # img = tf.image.random_crop(img, (self.image_size[0], self.image_size[1], 3))
+        img = tf.image.resize(img, (self.image_size[0], self.image_size[1]))
+
+        img = preprocess_input(img, mode='torch')
 
         return (img, label)
 
     def get_trainData(self, train_data):
         train_data = train_data.map(self.preprocess, num_parallel_calls=AUTO)
         train_data = train_data.map(self.augmentation, num_parallel_calls=AUTO)
-        train_data = train_data.shuffle(buffer_size=10000)
+        train_data = train_data.shuffle(buffer_size=8192, reshuffle_each_iteration=True)
         train_data = train_data.prefetch(AUTO)
-        train_data = train_data.repeat()
         train_data = train_data.padded_batch(self.batch_size)
+        train_data = train_data.repeat()
 
         return train_data
 
     def get_validData(self, valid_data):
-        valid_data = valid_data.map(self.preprocess, num_parallel_calls=AUTO)
+        valid_data = valid_data.map(self.preprocess_valid, num_parallel_calls=AUTO)
         valid_data = valid_data.padded_batch(self.batch_size).prefetch(AUTO)
         return valid_data

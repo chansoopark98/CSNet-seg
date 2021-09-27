@@ -292,10 +292,12 @@ def ddrnet_23_slim(input_shape=[1024,2048,3], layers_arg=[2, 2, 2, 2], num_class
 
     model_output = layers.Add()([x, x_])
 
+
     model_output = layers.Conv2D(1024, kernel_size=1, strides=1, padding='same', use_bias=False)(model_output)
     model_output = layers.BatchNormalization()(model_output)
     model_output = layers.Activation("relu")(model_output)
     model_output = tfa.layers.AdaptiveAveragePooling2D([1, 1])(model_output)
+    model_output = layers.Flatten()(model_output)
     model_output = layers.Dense(1000)(model_output)
 
 
@@ -311,16 +313,32 @@ def ddrnet_23_slim(input_shape=[1024,2048,3], layers_arg=[2, 2, 2, 2], num_class
 
     return model
 
-# if __name__ == "__main__":
-#     """## Model Compilation"""
-#     INPUT_SHAPE = [1024, 2048, 3]
-#     OUTPUT_CHANNELS = 19
-#     with tf.device("cpu:0"):
-#         # create model
-#         ddrnet_model = ddrnet_23_slim( num_classes=OUTPUT_CHANNELS, input_shape =INPUT_SHAPE, )
-#         optimizer = tf.keras.optimizers.SGD(momentum=0.9, lr=0.045)
-#         # compile model
-#         ddrnet_model.compile(loss=tf.keras.losses.CategoricalCrossentropy(from_logits=False), optimizer=optimizer,
-#                           metrics=['accuracy'])
-#         # show model summary in output
-#         ddrnet_model.summary()
+def seg_model(input_shape=(224,224,3), layers_arg=[2, 2, 2, 2], num_classes=20, planes=32, spp_planes=128,
+                   head_planes=64, scale_factor=8,augment=False):
+
+    base = ddrnet_23_slim(input_shape=input_shape)
+    base.load_weights('./classification/model/_0916_best_loss.h5')
+
+    highres_planes = planes * 2
+    input_shape = tf.keras.backend.int_shape(base.input)
+    height_output = input_shape[1] // 8
+    width_output = input_shape[2] // 8
+
+
+
+    x = base.get_layer('batch_normalization_39').output
+    x_ = base.get_layer('add_16').output
+
+    # Deep Aggregation Pyramid Pooling Module
+    x = DAPPPM(x, spp_planes, planes * 4)
+
+    # resize from 1/64 to 1/8
+    x = tf.image.resize(x, (height_output, width_output))
+
+    x_ = layers.Add()([x, x_])
+
+    x_ = segmentation_head((x_), head_planes, num_classes, scale_factor)
+
+    model = models.Model(inputs=[base.input], outputs=[x_])
+
+    return model

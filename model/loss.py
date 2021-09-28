@@ -103,30 +103,31 @@ class SparseCategoricalFocalLoss(tf.keras.losses.Loss):
 import tensorflow.keras.backend as K
 
 class Seg_loss:
-    def __init__(self, batch_size):
+    def __init__(self, batch_size, use_aux=False):
         self.batch_size = batch_size
         self.alpha = 0.25
         self.gamma = 2.0
+        self.num_classes = 19
+        if use_aux:
+            self.aux_factor = 0.4
+        else:
+            self.aux_factor = 1
 
     def ce_loss(self, y_true, y_pred):
-        """
-        Args:
-            y_true: (N, H, W, 1)
-            y_pred: (N, H, W, Classes)
+        y_true = tf.squeeze(y_true, axis=3)
+        y_true = tf.reshape(y_true, [-1,])
+        # todo
+        raw_prediction = tf.reshape(y_pred, [-1, self.num_classes])
+        indices = tf.squeeze(tf.where(tf.less_equal(y_true, self.num_classes-1)), 1)
+        gt = tf.cast(tf.gather(y_true, indices), tf.int32)
+        prediction = tf.gather(raw_prediction, indices)
+        ce_loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True,
+                                                                reduction=tf.keras.losses.Reduction.NONE)(y_true=gt,
+                                                                                                          y_pred=prediction)
 
-            predcit [[0.3, 0.2, 01] [/../..], [/...,///]]
-            labels [[1], [3], [5]]
-        Returns:
+        total_loss = ce_loss * self.aux_factor
 
-        """
-
-        # original
-        loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True,
-                                                             reduction=tf.keras.losses.Reduction.NONE)(y_true=y_true, y_pred=y_pred)
-
-        # loss = K.mean(loss)
-
-        return loss
+        return total_loss
 
     def focal_loss(self, y_true, y_pred):
 

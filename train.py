@@ -11,7 +11,7 @@ import time
 import os
 import tensorflow as tf
 from utils.get_flops import get_flops
-# import tensorflow_addons as tfa
+import tensorflow_addons as tfa
 # from utils.cityscape_colormap import class_weight
 # from utils.adamW import LearningRateScheduler, poly_decay
 # import tensorflow_addons
@@ -22,7 +22,7 @@ tf.keras.backend.clear_session()
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=64)
-parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=200)
+parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=484)
 parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.01)
 parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.0005)
 parser.add_argument("--model_name",     type=str,   help="저장될 모델 이름",
@@ -30,7 +30,7 @@ parser.add_argument("--model_name",     type=str,   help="저장될 모델 이�
 parser.add_argument("--dataset_dir",    type=str,   help="데이터셋 다운로드 디렉토리 설정", default='./datasets/')
 parser.add_argument("--checkpoint_dir", type=str,   help="모델 저장 디렉토리 설정", default='./checkpoints/')
 parser.add_argument("--tensorboard_dir",  type=str,   help="텐서보드 저장 경로", default='tensorboard')
-parser.add_argument("--use_weightDecay",  type=bool,  help="weightDecay 사용 유무", default=True)
+parser.add_argument("--use_weightDecay",  type=bool,  help="weightDecay 사용 유무", default=False)
 parser.add_argument("--load_weight",  type=bool,  help="가중치 로드", default=False)
 parser.add_argument("--mixed_precision",  type=bool,  help="mixed_precision 사용", default=True)
 parser.add_argument("--distribution_mode",  type=bool,  help="분산 학습 모드 설정 mirror or multi", default='mirror')
@@ -93,7 +93,7 @@ with mirrored_strategy.scope():
     checkpoint_val_loss = ModelCheckpoint(CHECKPOINT_DIR + '_' + SAVE_MODEL_NAME + '_best_loss.h5',
                                           monitor='val_loss', save_best_only=True, save_weights_only=True, verbose=1)
     checkpoint_val_miou = ModelCheckpoint(CHECKPOINT_DIR + '_' + SAVE_MODEL_NAME + '_best_miou.h5',
-                                          monitor='val_mean_iou', save_best_only=True, save_weights_only=True,
+                                          monitor='val_output_mean_iou', save_best_only=True, save_weights_only=True,
                                           verbose=1, mode='max')
     testCallBack = Scalar_LR('test', TENSORBOARD_DIR)
     tensorboard = tf.keras.callbacks.TensorBoard(log_dir=TENSORBOARD_DIR, write_graph=True, write_images=True)
@@ -109,34 +109,42 @@ with mirrored_strategy.scope():
 
 
     # optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
-    optimizer = tf.keras.optimizers.SGD(learning_rate=base_lr, momentum=0.9)
+    # optimizer = tf.keras.optimizers.SGD(learning_rate=base_lr, momentum=0.9)
     # optimizer = tf.keras.optimizers.Nadam(learning_rate=base_lr)
-
-    # adamW = tfa.optimizers.extend_with_decoupled_weight_decay(tf.keras.optimizers.Adam)
-    # optimizer = adamW(weight_decay=WEIGHT_DECAY, learning_rate=base_lr)
+    # optimizer = tfa.optimizers.SGDW(
+    #     weight_decay=WEIGHT_DECAY,
+    #     momentum=0.9,
+    #     learning_rate=base_lr),
+    sgdW = tfa.optimizers.extend_with_decoupled_weight_decay(tf.keras.optimizers.SGD)
+    optimizer = sgdW(weight_decay=WEIGHT_DECAY, learning_rate=base_lr, momentum=0.9)
 
     if MIXED_PRECISION:
         optimizer = mixed_precision.LossScaleOptimizer(optimizer, loss_scale='dynamic')  # tf2.4.1 이전
 
-    mIoU = MeanIOU(20)
+    mIoU = MeanIOU(19)
     callback = [checkpoint_val_miou,  tensorboard, testCallBack, lr_scheduler]
 
     loss = Seg_loss(BATCH_SIZE)
-
-    model = seg_model_build(image_size=IMAGE_SIZE, mode='seg')
+    aux_loss = Seg_loss(BATCH_SIZE, True)
+    model = seg_model_build(image_size=IMAGE_SIZE, mode='seg',augment=True)
 
     if USE_WEIGHT_DECAY:
-        regularizer = tf.keras.regularizers.l2(WEIGHT_DECAY)
+        regularizer = tf.keras.regularizers.l2(WEIGHT_DECAY/2.0)
         for layer in model.layers:
             for attr in ['kernel_regularizer']:
                 if hasattr(layer, attr) and layer.trainable:
                     setattr(layer, attr, regularizer)
+            for attr in ['bias_regularizer']:
+                if hasattr(layer, attr) and layer.trainable and layer.use_bias:
+                    setattr(layer, attr, regularizer)
 
-
+    losses = {'output': loss.ce_loss,
+              'aux': aux_loss.ce_loss
+              }
 
     model.compile(
         optimizer=optimizer,
-        loss=loss.ce_loss,
+        loss=losses,
         metrics=[mIoU])
 
     if LOAD_WEIGHT:

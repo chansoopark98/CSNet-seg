@@ -1,5 +1,5 @@
 from tensorflow.keras.mixed_precision import experimental as mixed_precision
-from model.model_builder import seg_model_build
+from classification.model.model_builder import seg_model_build
 import argparse
 import time
 import os
@@ -11,7 +11,7 @@ from utils.cityscape_colormap import color_map
 tf.keras.backend.clear_session()
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=16)
+parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=8)
 parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=100)
 parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.001)
 parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.0005)
@@ -71,25 +71,21 @@ test_set = dataset.get_testData(dataset.valid_data)
 #
 # with mirrored_strategy.scope():
 
-model = seg_model_build(image_size=IMAGE_SIZE)
-
-weight_name = '_0826_best_miou'
-model.load_weights(CHECKPOINT_DIR + weight_name + '.h5')
-
+model = seg_model_build(image_size=IMAGE_SIZE, mode='seg', augment=False)
+weight_name = '_0927_best_miou'
+model.load_weights(CHECKPOINT_DIR + weight_name + '.h5',by_name=True)
 model.summary()
-
-
-import matplotlib.pyplot as plt
 
 class MeanIOU(tf.keras.metrics.MeanIoU):
     def update_state(self, y_true, y_pred, sample_weight=None):
-        # y_true = tf.squeeze(y_true, -1)
-        # y_pred = tf.argmax(y_pred, axis=-1)
+        y_true = tf.squeeze(y_true, axis=-1)
+        y_true = tf.reshape(y_true, [-1,])
 
-        # mask = tf.where(y_true>0, True, False)
-        # y_true = tf.boolean_mask(y_true, mask)
-        # y_pred = tf.expand_dims(y_pred, axis=-1)
-        # y_pred = tf.boolean_mask(y_pred, mask)
+        raw_prediction = tf.reshape(y_pred, [-1,])
+        indices = tf.squeeze(tf.where(tf.less_equal(y_true, self.num_classes-1)), 1)
+        y_true = tf.cast(tf.gather(y_true, indices), tf.int32)
+        y_pred = tf.gather(raw_prediction, indices)
+
 
         return super().update_state(y_true, y_pred, sample_weight)
 
@@ -103,14 +99,14 @@ for x, y in tqdm(test_set, total=test_steps):
     pred = tf.argmax(pred, axis=-1)
 
     for i in range(len(pred)):
-        # metric.update_state(y[i], pred[i])
-        # buffer += metric.result().numpy()
+        metric.update_state(y[i], pred[i])
+        buffer += metric.result().numpy()
 
         r = pred[i]
         g = pred[i]
         b = pred[i]
 
-        for j in range(20):
+        for j in range(19):
             r = tf.where(tf.equal(r, j), color_map[j][0], r)
             g = tf.where(tf.equal(g, j), color_map[j][1], g)
             b = tf.where(tf.equal(b, j), color_map[j][2], b)
@@ -129,7 +125,7 @@ for x, y in tqdm(test_set, total=test_steps):
 
 
 
-# print("CityScapes validation 1024x2048 mIoU :  ", buffer/dataset.number_valid)
+print("CityScapes validation 1024x2048 mIoU :  ", buffer/dataset.number_valid)
 
 
 

@@ -1,7 +1,8 @@
 from tensorflow.keras.applications.imagenet_utils import preprocess_input
 import tensorflow_datasets as tfds
 import tensorflow as tf
-# import tensorflow_addons as tfa
+import tensorflow_addons as tfa
+import numpy as np
 
 AUTO = tf.data.experimental.AUTOTUNE
 
@@ -17,6 +18,8 @@ class CityScapes:
         self.data_dir = data_dir
         self.image_size = image_size
         self.batch_size = batch_size
+        self.mean = (0.28689554, 0.32513303, 0.28389177)
+        self.std = (0.18696375, 0.19017339, 0.18720214)
 
         if mode == 'train':
             self.train_data, self.number_train = self._load_train_datasets()
@@ -36,7 +39,7 @@ class CityScapes:
 
     def _load_train_datasets(self):
         train_data = tfds.load('cityscapes/semantic_segmentation',
-                               data_dir=self.data_dir, split='train')
+                               data_dir=self.data_dir, split='train', shuffle_files=True)
 
 
         number_train = train_data.reduce(0, lambda x, _: x + 1).numpy()
@@ -65,44 +68,32 @@ class CityScapes:
     @tf.function
     def preprocess(self, sample):
         img = sample['image_left']
-        labels = sample['segmentation_label']
-
+        labels = sample['segmentation_label']-1
 
         concat_img = tf.concat([img, labels], axis=-1)
         concat_img = tf.image.random_crop(concat_img, (self.image_size[0], self.image_size[1], 4))
 
         img = concat_img[:, :, :3]
         labels = concat_img[:, :, 3:]
-
-
-
-
-        img = tf.cast(img, dtype=tf.float32)
-        labels = tf.cast(labels, dtype=tf.int64)
-
-        img = preprocess_input(img, mode='torch')
 
         return (img, labels)
 
     @tf.function
     def preprocess_valid(self, sample):
         img = sample['image_left']
-        labels = sample['segmentation_label']
-
+        labels = sample['segmentation_label']-1
 
         concat_img = tf.concat([img, labels], axis=-1)
         concat_img = tf.image.random_crop(concat_img, (self.image_size[0], self.image_size[1], 4))
 
         img = concat_img[:, :, :3]
         labels = concat_img[:, :, 3:]
-        #
-        # img = tf.image.resize(img, (512, 1024), method=tf.image.ResizeMethod.BILINEAR)
-        # labels = tf.image.resize(labels, (512, 1024), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
 
         img = tf.cast(img, dtype=tf.float32)
         labels = tf.cast(labels, dtype=tf.int64)
 
-        img = preprocess_input(img, mode='torch')
+        img = (img - self.mean) / self.std
+        # img = preprocess_input(img, mode='torch')
 
         return (img, labels)
 
@@ -110,31 +101,55 @@ class CityScapes:
 
     @tf.function
     def augmentation(self, img, labels):
+        # if tf.random.uniform([], minval=0, maxval=1) > 0.75:
+        #     img = tf.image.random_hue(img, 0.08)
+        #     img = tf.image.random_saturation(img, 0.6, 1.6)
+        #     img = tf.image.random_brightness(img, 0.05)
+        #     img = tf.image.random_contrast(img, 0.7, 1.3)
 
-
-        # if tf.random.uniform([]) > 0.5:
-        #     img = tf.image.random_brightness(img, max_delta=0.4)
-        #     # img = tf.image.random_brightness(img, max_delta=0.1)
-        # if tf.random.uniform([]) > 0.5:
-        #     img = tf.image.random_contrast(img, lower=0.7, upper=1.4)
-        #     # img = tf.image.random_contrast(img, lower=0.1, upper=0.8)
-        # if tf.random.uniform([]) > 0.5:
-        #     img = tf.image.random_hue(img, max_delta=0.4)
-        # if tf.random.uniform([]) > 0.5:
-        #     img = tf.image.random_saturation(img, lower=0.7, upper=1.4)
-        #     # img = tf.image.random_saturation(img, lower=0.1, upper=0.8)
-        # # if tf.random.uniform([]) > 0.5:
-        # #     img = tfa.image.sharpness(img, factor=0.5)
-        if tf.random.uniform([]) > 0.5:
+        if tf.random.uniform([], minval=0, maxval=1) > 0.5:
             img = tf.image.flip_left_right(img)
             labels = tf.image.flip_left_right(labels)
 
+        # if tf.random.uniform([], minval=0, maxval=1) > 0.5:
+        #     img, labels = self.zoom(img, labels)
+
+        # if tf.random.uniform([], minval=0, maxval=1) > 0.5:
+        #     img, labels = self.rotate(img, labels)
+
+        img = tf.cast(img, dtype=tf.float32)
+        labels = tf.cast(labels, dtype=tf.int64)
+
+        img = (img - self.mean) / self.std
+        # img = preprocess_input(img, mode='torch')
+
+
+        # labels = tf.cast(labels, dtype=tf.int64)
 
         return (img, labels)
 
+    @tf.function
+    def zoom(self, x, labels, scale_min=0.6, scale_max=1.6):
+        h, w, _ = x.shape
+        scale = tf.random.uniform([], scale_min, scale_max)
+        nh = h * scale
+        nw = w * scale
+        x = tf.image.resize(x, (nh, nw), method=tf.image.ResizeMethod.BILINEAR)
+        labels = tf.image.resize(labels, (nh, nw), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+        x = tf.image.resize_with_crop_or_pad(x, h, w)
+        labels = tf.image.resize_with_crop_or_pad(labels, h, w)
+        return (x, labels)
+
+    @tf.function
+    def rotate(self, x, labels, angle=(-45, 45)):
+        angle = tf.random.uniform([], angle[0], angle[1], tf.float32)
+        theta = np.pi * angle / 180
+
+        x = tfa.image.rotate(x, theta, interpolation="bilinear")
+        labels = tfa.image.rotate(labels, theta)
+        return (x, labels)
+
     def get_trainData(self, train_data):
-        # num_parallel_calls=AUTO
-        train_data = train_data.shuffle(buffer_size=1000, reshuffle_each_iteration=True)
         train_data = train_data.map(self.preprocess, num_parallel_calls=AUTO)
         train_data = train_data.map(self.augmentation, num_parallel_calls=AUTO)
         train_data = train_data.prefetch(AUTO)

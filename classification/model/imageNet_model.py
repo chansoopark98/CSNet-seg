@@ -12,7 +12,7 @@ Creates a residual block with two 3*3 conv's
 in paper it's represented by RB block
 """
 basicblock_expansion = 1
-def basic_block(x_in, planes, stride=1, downsample=None, no_relu=False):
+def basic_block(x_in, planes, stride=1, downsample=None, no_relu=False, name=None):
     residual = x_in
 
     x = conv3x3(planes, stride)(x_in)
@@ -37,7 +37,7 @@ def basic_block(x_in, planes, stride=1, downsample=None, no_relu=False):
 creates a bottleneck block of 1*1 -> 3*3 -> 1*1
 """
 bottleneck_expansion = 2
-def bottleneck_block(x_in, planes, stride=1, downsample=None, no_relu=True):
+def bottleneck_block(x_in, planes, stride=1, downsample=None, no_relu=True, name=None):
     residual = x_in
 
     x = layers.Conv2D(filters=planes, kernel_size=(1,1), use_bias=False)(x_in)
@@ -55,7 +55,9 @@ def bottleneck_block(x_in, planes, stride=1, downsample=None, no_relu=True):
         residual = downsample
 
     # x += residual
-    x = layers.Add()([x, residual])
+
+    x = layers.Add(name=name)([x, residual])
+
 
     if not no_relu:
         x = layers.Activation("relu")(x)
@@ -121,20 +123,22 @@ def DAPPPM(x_in, branch_planes, outplanes):
 Segmentation head 
 3*3 -> 1*1 -> rescale
 """
-def segmentation_head(x_in, interplanes, outplanes, scale_factor=None):
+def segmentation_head(x_in, interplanes, outplanes, scale_factor=None, name=None):
     x = layers.BatchNormalization()(x_in)
     x = layers.Activation("relu")(x)
     x = layers.Conv2D(interplanes, kernel_size=(3, 3), use_bias=False, padding="same")(x)
 
     x = layers.BatchNormalization()(x)
     x = layers.Activation("relu")(x)
-    x = layers.Conv2D(outplanes, kernel_size=(1, 1), use_bias=range, padding="valid")(x)
+    x = layers.Conv2D(outplanes, kernel_size=(1, 1), use_bias=True, padding="valid")(x)
 
     if scale_factor is not None:
         input_shape = tf.keras.backend.int_shape(x)
         height2 = input_shape[1] * scale_factor
         width2 = input_shape[2] * scale_factor
-        x = tf.image.resize(x, size =(height2, width2))
+        # x = tf.image.resize(x, size =(height2, width2), name=name)
+        x = tf.keras.layers.UpSampling2D((8,8), interpolation='bilinear', name=name)(x)
+
 
     return x
 
@@ -148,19 +152,19 @@ blocks_num: number of time block to applied
 stride: stride
 expansion: expand last dimension
 """
-def make_layer(x_in, block, inplanes, planes, blocks_num, stride=1, expansion=1):
+def make_layer(x_in, block, inplanes, planes, blocks_num, stride=1, expansion=1, name=None):
     downsample = None
     if stride != 1 or inplanes != planes * expansion:
         downsample = layers.Conv2D(((planes * expansion)), kernel_size=(1, 1),strides=stride, use_bias=False)(x_in)
         downsample = layers.BatchNormalization()(downsample)
         downsample = layers.Activation("relu")(downsample)
 
-    x = block(x_in, planes, stride, downsample)
+    x = block(x_in, planes, stride, downsample, name=name)
     for i in range(1, blocks_num):
         if i == (blocks_num - 1):
-            x = block(x, planes, stride=1, no_relu=True)
+            x = block(x, planes, stride=1, no_relu=True, name=name)
         else:
-            x = block(x, planes, stride=1, no_relu=False)
+            x = block(x, planes, stride=1, no_relu=False, name=name)
 
     return x
 
@@ -235,7 +239,7 @@ def ddrnet_23_slim(input_shape=[1024,2048,3], layers_arg=[2, 2, 2, 2], num_class
     x_temp = layers.Conv2D(highres_planes, kernel_size=(1,1), use_bias=False)(x_temp)
     x_temp = layers.BatchNormalization()(x_temp)
     x_temp = tf.image.resize(x_temp, (height_output, width_output)) # 1/16 -> 1/8
-    x_ = layers.Add()([x_, x_temp]) # next high branch input, 1/8
+    x_ = layers.Add(name='temp_output')([x_, x_temp]) # next high branch input, 1/8
 
     if augment:
         temp_output = x_  # Auxiliary loss from high branch
@@ -273,7 +277,7 @@ def ddrnet_23_slim(input_shape=[1024,2048,3], layers_arg=[2, 2, 2, 2], num_class
     # 5 High :: 1/8 -> 1/8
     # layer5_
     x_ = layers.Activation("relu")(x_)
-    x_ = make_layer(x_, bottleneck_block, highres_planes, highres_planes, 1, expansion=bottleneck_expansion)
+    x_ = make_layer(x_, bottleneck_block, highres_planes, highres_planes, 1, expansion=bottleneck_expansion, name='final_x_')
 
     # relu
     x_ = layers.Activation("relu")(x_)
@@ -288,8 +292,9 @@ def ddrnet_23_slim(input_shape=[1024,2048,3], layers_arg=[2, 2, 2, 2], num_class
 
     x = layers.Activation("relu")(x)
     # 5 Low :: 1/32 -> 1/64
-    x = make_layer(x, bottleneck_block,  planes * 8, planes * 8, 1, stride=1, expansion=bottleneck_expansion)
+    x = make_layer(x, bottleneck_block,  planes * 8, planes * 8, 1, stride=1, expansion=bottleneck_expansion, name='cls_final_x')
 
+    "seg here"
     model_output = layers.Add()([x, x_])
 
 
@@ -316,8 +321,8 @@ def ddrnet_23_slim(input_shape=[1024,2048,3], layers_arg=[2, 2, 2, 2], num_class
 def seg_model(input_shape=(224,224,3), layers_arg=[2, 2, 2, 2], num_classes=20, planes=32, spp_planes=128,
                    head_planes=64, scale_factor=8,augment=False):
 
-    base = ddrnet_23_slim(input_shape=input_shape)
-    base.load_weights('./classification/model/_0916_best_loss.h5')
+    base = ddrnet_23_slim(input_shape=input_shape, augment=augment)
+    base.load_weights('./classification/model/_0924_backbone_best_loss.h5')
 
     highres_planes = planes * 2
     input_shape = tf.keras.backend.int_shape(base.input)
@@ -326,8 +331,10 @@ def seg_model(input_shape=(224,224,3), layers_arg=[2, 2, 2, 2], num_classes=20, 
 
 
 
-    x = base.get_layer('batch_normalization_39').output
-    x_ = base.get_layer('add_16').output
+    x = base.get_layer('cls_final_x').output
+
+    x_ = base.get_layer('final_x_').output
+    aux = base.get_layer('temp_output').output
 
     # Deep Aggregation Pyramid Pooling Module
     x = DAPPPM(x, spp_planes, planes * 4)
@@ -337,8 +344,15 @@ def seg_model(input_shape=(224,224,3), layers_arg=[2, 2, 2, 2], num_classes=20, 
 
     x_ = layers.Add()([x, x_])
 
-    x_ = segmentation_head((x_), head_planes, num_classes, scale_factor)
+    x_ = segmentation_head((x_), head_planes, num_classes, scale_factor, name='output')
 
-    model = models.Model(inputs=[base.input], outputs=[x_])
+    aux_map = segmentation_head(aux, head_planes, num_classes, scale_factor, name='aux')
+
+    if augment:
+        model_output = [x_, aux_map]
+    else:
+        model_output = [x_]
+
+    model = models.Model(inputs=[base.input], outputs=model_output)
 
     return model

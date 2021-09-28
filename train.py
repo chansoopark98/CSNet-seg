@@ -22,7 +22,7 @@ tf.keras.backend.clear_session()
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=64)
-parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=484)
+parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=200)
 parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.01)
 parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.0005)
 parser.add_argument("--model_name",     type=str,   help="저장될 모델 이름",
@@ -108,15 +108,15 @@ with mirrored_strategy.scope():
     # lr_scheduler = LearningRateScheduler(poly_lr, BATCH_SIZE, False, steps_per_epoch, verbose=1)
 
 
-    # optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
     # optimizer = tf.keras.optimizers.SGD(learning_rate=base_lr, momentum=0.9)
     # optimizer = tf.keras.optimizers.Nadam(learning_rate=base_lr)
     # optimizer = tfa.optimizers.SGDW(
     #     weight_decay=WEIGHT_DECAY,
     #     momentum=0.9,
     #     learning_rate=base_lr),
-    sgdW = tfa.optimizers.extend_with_decoupled_weight_decay(tf.keras.optimizers.SGD)
-    optimizer = sgdW(weight_decay=WEIGHT_DECAY, learning_rate=base_lr, momentum=0.9)
+    # sgdW = tfa.optimizers.extend_with_decoupled_weight_decay(tf.keras.optimizers.SGD)
+    # optimizer = sgdW(weight_decay=WEIGHT_DECAY, learning_rate=base_lr, momentum=0.9)
 
     if MIXED_PRECISION:
         optimizer = mixed_precision.LossScaleOptimizer(optimizer, loss_scale='dynamic')  # tf2.4.1 이전

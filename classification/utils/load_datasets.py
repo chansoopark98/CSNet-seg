@@ -47,10 +47,13 @@ class GenerateDatasets:
 
     @tf.function
     def augmentation(self, img, labels):
-        if tf.random.uniform([], 0, 1) > 0.75:
+        if tf.random.uniform([], 0, 1) > 0.5:
             img = tf.image.random_hue(img, 0.08)
+        if tf.random.uniform([], 0, 1) > 0.5:
             img = tf.image.random_saturation(img, 0.6, 1.6)
+        if tf.random.uniform([], 0, 1) > 0.5:
             img = tf.image.random_brightness(img, 0.05)
+        if tf.random.uniform([], 0, 1) > 0.5:
             img = tf.image.random_contrast(img, 0.7, 1.3)
 
         if tf.random.uniform([], 0, 1) > 0.5:
@@ -86,11 +89,13 @@ class GenerateDatasets:
 
     @tf.function
     def preprocess(self, sample):
-        img = sample['image']
+        img = tf.cast(sample['image'], dtype=tf.float32)
         label = sample['label']
 
         # img = tf.image.random_crop(img, (self.image_size[0], self.image_size[1], 3))
-        img = tf.image.resize(img, (self.image_size[0], self.image_size[1]))
+        # img = tf.image.resize(img, (self.image_size[0], self.image_size[1]))
+        img = tf.image.resize(img, (256, 256))
+        img = tf.image.random_crop(img, (self.image_size[0], self.image_size[1], 3))
 
         return (img, label)
 
@@ -107,9 +112,9 @@ class GenerateDatasets:
         return (img, label)
 
     def get_trainData(self, train_data):
+        train_data = train_data.shuffle(buffer_size=8192, reshuffle_each_iteration=True)
         train_data = train_data.map(self.preprocess, num_parallel_calls=AUTO)
         train_data = train_data.map(self.augmentation, num_parallel_calls=AUTO)
-        train_data = train_data.shuffle(buffer_size=8192, reshuffle_each_iteration=True)
         train_data = train_data.prefetch(AUTO)
         train_data = train_data.padded_batch(self.batch_size)
         train_data = train_data.repeat()

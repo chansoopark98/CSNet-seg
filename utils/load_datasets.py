@@ -39,7 +39,7 @@ class CityScapes:
 
     def _load_train_datasets(self):
         train_data = tfds.load('cityscapes/semantic_segmentation',
-                               data_dir=self.data_dir, split='train', shuffle_files=True)
+                               data_dir=self.data_dir, split='train')
 
 
         number_train = train_data.reduce(0, lambda x, _: x + 1).numpy()
@@ -150,6 +150,7 @@ class CityScapes:
         return (x, labels)
 
     def get_trainData(self, train_data):
+        train_data = train_data.shuffle(1000)
         train_data = train_data.map(self.preprocess, num_parallel_calls=AUTO)
         train_data = train_data.map(self.augmentation, num_parallel_calls=AUTO)
         train_data = train_data.prefetch(AUTO)

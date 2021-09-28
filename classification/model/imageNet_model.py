@@ -3,6 +3,9 @@ import tensorflow.keras.layers as layers
 import tensorflow.keras.models as models
 import tensorflow_addons as tfa
 
+# BN = tf.keras.layers.experimental.SyncBatchNormalization
+BN = tf.keras.layers.BatchNormalization
+bn_momentum = 0.1
 def conv3x3(out_planes, stride=1):
     return layers.Conv2D(kernel_size=(3,3), filters=out_planes, strides=stride, padding="same",
                        use_bias=False)
@@ -16,11 +19,11 @@ def basic_block(x_in, planes, stride=1, downsample=None, no_relu=False, name=Non
     residual = x_in
 
     x = conv3x3(planes, stride)(x_in)
-    x = layers.BatchNormalization()(x)
+    x = BN(momentum=bn_momentum)(x)
     x = layers.Activation("relu")(x)
 
     x = conv3x3(planes,)(x)
-    x = layers.BatchNormalization()(x)
+    x = BN(momentum=bn_momentum)(x)
 
     if downsample is not None:
         residual = downsample
@@ -41,15 +44,15 @@ def bottleneck_block(x_in, planes, stride=1, downsample=None, no_relu=True, name
     residual = x_in
 
     x = layers.Conv2D(filters=planes, kernel_size=(1,1), use_bias=False)(x_in)
-    x = layers.BatchNormalization()(x)
+    x = BN(momentum=bn_momentum)(x)
     x = layers.Activation("relu")(x)
 
     x = layers.Conv2D(filters=planes, kernel_size=(3,3), strides=stride, padding="same",use_bias=False)(x)
-    x = layers.BatchNormalization()(x)
+    x = BN(momentum=bn_momentum)(x)
     x = layers.Activation("relu")(x)
 
     x = layers.Conv2D(filters=planes* bottleneck_expansion, kernel_size=(1,1), use_bias=False)(x)
-    x= layers.BatchNormalization()(x)
+    x = BN(momentum=bn_momentum)(x)
 
     if downsample is not None:
         residual = downsample
@@ -78,7 +81,7 @@ def DAPPPM(x_in, branch_planes, outplanes):
     x_list = []
 
     # y1
-    scale0 = layers.BatchNormalization()(x_in)
+    scale0 = BN(momentum=bn_momentum)(x_in)
     scale0 = layers.Activation("relu")(scale0)
     scale0 = layers.Conv2D(branch_planes, kernel_size=(1,1), use_bias=False, )(scale0)
     x_list.append(scale0)
@@ -88,7 +91,7 @@ def DAPPPM(x_in, branch_planes, outplanes):
         temp = layers.AveragePooling2D(pool_size=(kernal_sizes_height[i],kernal_sizes_width[i]),
                                        strides=(stride_sizes_height[i],stride_sizes_width[i]),
                                        padding="same")(x_in)
-        temp = layers.BatchNormalization()(temp)
+        temp = BN(momentum=bn_momentum)(temp)
         temp = layers.Activation("relu")(temp)
         # then apply 1*1 conv
         temp = layers.Conv2D(branch_planes, kernel_size=(1, 1), use_bias=False, )(temp)
@@ -96,7 +99,7 @@ def DAPPPM(x_in, branch_planes, outplanes):
         temp = tf.image.resize(temp, size=(height,width), )
         # add current and previous layer output
         temp = layers.Add()([temp, x_list[i]])
-        temp = layers.BatchNormalization()(temp)
+        temp = BN(momentum=bn_momentum)(temp)
         temp = layers.Activation("relu")(temp)
         # at the end apply 3*3 conv
         temp = layers.Conv2D(branch_planes, kernel_size=(3, 3), use_bias=False, padding="same")(temp)
@@ -106,11 +109,11 @@ def DAPPPM(x_in, branch_planes, outplanes):
     # concatenate all
     combined = layers.concatenate(x_list, axis=-1)
 
-    combined = layers.BatchNormalization()(combined)
+    combined = BN(momentum=bn_momentum)(combined)
     combined = layers.Activation("relu")(combined)
     combined = layers.Conv2D(outplanes, kernel_size=(1, 1), use_bias=False, )(combined)
 
-    shortcut = layers.BatchNormalization()(x_in)
+    shortcut = BN(momentum=bn_momentum)(x_in)
     shortcut = layers.Activation("relu")(shortcut)
     shortcut = layers.Conv2D(outplanes, kernel_size=(1, 1), use_bias=False, )(shortcut)
 
@@ -124,11 +127,11 @@ Segmentation head
 3*3 -> 1*1 -> rescale
 """
 def segmentation_head(x_in, interplanes, outplanes, scale_factor=None, name=None):
-    x = layers.BatchNormalization()(x_in)
+    x = BN(momentum=bn_momentum)(x_in)
     x = layers.Activation("relu")(x)
     x = layers.Conv2D(interplanes, kernel_size=(3, 3), use_bias=False, padding="same")(x)
 
-    x = layers.BatchNormalization()(x)
+    x = BN(momentum=bn_momentum)(x)
     x = layers.Activation("relu")(x)
     x = layers.Conv2D(outplanes, kernel_size=(1, 1), use_bias=True, padding="valid")(x)
 
@@ -156,7 +159,7 @@ def make_layer(x_in, block, inplanes, planes, blocks_num, stride=1, expansion=1,
     downsample = None
     if stride != 1 or inplanes != planes * expansion:
         downsample = layers.Conv2D(((planes * expansion)), kernel_size=(1, 1),strides=stride, use_bias=False)(x_in)
-        downsample = layers.BatchNormalization()(downsample)
+        downsample = BN(momentum=bn_momentum)(downsample)
         downsample = layers.Activation("relu")(downsample)
 
     x = block(x_in, planes, stride, downsample, name=name)
@@ -194,11 +197,11 @@ def ddrnet_23_slim(input_shape=[1024,2048,3], layers_arg=[2, 2, 2, 2], num_class
 
     # 1 -> 1/2 first conv layer
     x = layers.Conv2D(planes, kernel_size=(3, 3),strides=2, padding='same')(x_in)
-    x = layers.BatchNormalization()(x)
+    x = BN(momentum=bn_momentum)(x)
     x = layers.Activation("relu")(x)
     # 1/2 -> 1/4 second conv layer
     x = layers.Conv2D(planes, kernel_size=(3, 3), strides=2, padding='same')(x)
-    x = layers.BatchNormalization()(x)
+    x = BN(momentum=bn_momentum)(x)
     x = layers.Activation("relu")(x)
 
     # layer 1
@@ -232,12 +235,12 @@ def ddrnet_23_slim(input_shape=[1024,2048,3], layers_arg=[2, 2, 2, 2], num_class
     # High to Low
     x_temp = layers.Activation("relu")(x_)
     x_temp =  layers.Conv2D(planes*4, kernel_size=(3, 3), strides=2, padding='same', use_bias=False)(x_temp)
-    x_temp = layers.BatchNormalization()(x_temp)
+    x_temp = BN(momentum=bn_momentum)(x_temp)
     x = layers.Add()([x, x_temp])
     # Low to High
     x_temp = layers.Activation("relu")(layers_inside[2])
     x_temp = layers.Conv2D(highres_planes, kernel_size=(1,1), use_bias=False)(x_temp)
-    x_temp = layers.BatchNormalization()(x_temp)
+    x_temp = BN(momentum=bn_momentum)(x_temp)
     x_temp = tf.image.resize(x_temp, (height_output, width_output)) # 1/16 -> 1/8
     x_ = layers.Add(name='temp_output')([x_, x_temp]) # next high branch input, 1/8
 
@@ -257,52 +260,47 @@ def ddrnet_23_slim(input_shape=[1024,2048,3], layers_arg=[2, 2, 2, 2], num_class
     # High to low
     x_temp = layers.Activation("relu")(x_)
     x_temp = layers.Conv2D(planes * 4, kernel_size=(3, 3), strides=2, padding='same', use_bias=False)(x_temp)
-    x_temp = layers.BatchNormalization()(x_temp)
+    x_temp = BN(momentum=bn_momentum)(x_temp)
     x_temp = layers.Activation("relu")(x_temp)
     x_temp = layers.Conv2D(planes * 8, kernel_size=(3, 3), strides=2, padding='same', use_bias=False)(x_temp)
-    x_temp = layers.BatchNormalization()(x_temp)
+    x_temp = BN(momentum=bn_momentum)(x_temp)
     x = layers.Add()([x, x_temp])
-
 
     # Low to High
     x_temp = layers.Activation("relu")(layers_inside[3])
     x_temp = layers.Conv2D(highres_planes, kernel_size=(1, 1), use_bias=False)(x_temp)
-    x_temp = layers.BatchNormalization()(x_temp)
+    x_temp = BN(momentum=bn_momentum)(x_temp)
     x_temp = tf.image.resize(x_temp, (height_output, width_output))
     x_ = layers.Add()([x_, x_temp])
-
-
 
     # layer 5
     # 5 High :: 1/8 -> 1/8
     # layer5_
     x_ = layers.Activation("relu")(x_)
     x_ = make_layer(x_, bottleneck_block, highres_planes, highres_planes, 1, expansion=bottleneck_expansion, name='final_x_')
-
-    # relu
-    x_ = layers.Activation("relu")(x_)
+    x_ = layers.Activation("relu")(x_) # output shape = 28x28 @128
 
     # down5
     x_ = layers.Conv2D(planes * 8, kernel_size=3, strides=2, padding='same', use_bias=False)(x_)
-    x_ = layers.BatchNormalization()(x_)
+    x_ = BN(momentum=bn_momentum)(x_)
     x_ = layers.Activation("relu")(x_)
     x_ = layers.Conv2D(planes * 16, kernel_size=3, strides=2, padding='same', use_bias=False)(x_)
-    x_ = layers.BatchNormalization()(x_)
+    x_ = BN(momentum=bn_momentum)(x_) # 7x7 @512
 
 
     x = layers.Activation("relu")(x)
     # 5 Low :: 1/32 -> 1/64
     x = make_layer(x, bottleneck_block,  planes * 8, planes * 8, 1, stride=1, expansion=bottleneck_expansion, name='cls_final_x')
 
-    "seg here"
     model_output = layers.Add()([x, x_])
 
-
     model_output = layers.Conv2D(1024, kernel_size=1, strides=1, padding='same', use_bias=False)(model_output)
-    model_output = layers.BatchNormalization()(model_output)
+    model_output = BN(momentum=bn_momentum)(model_output)
     model_output = layers.Activation("relu")(model_output)
-    model_output = tfa.layers.AdaptiveAveragePooling2D([1, 1])(model_output)
-    model_output = layers.Flatten()(model_output)
+    model_output = layers.GlobalAveragePooling2D()(model_output)
+    # model_output = tfa.layers.AdaptiveAveragePooling2D([1, 1])(model_output)
+    # model_output = tf.reshape(model_output, [-1, 1024])
+    # model_output = layers.Flatten()(model_output)
     model_output = layers.Dense(1000)(model_output)
 
 

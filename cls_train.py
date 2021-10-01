@@ -9,14 +9,7 @@ import argparse
 import time
 import os
 import tensorflow as tf
-import tensorflow_addons as tfa
-from utils.get_flops import get_flops
 # LD_PRELOAD="/lib/x86_64-linux-gnu/libtcmalloc_minimal.so.4" python cls_train.py
-# import tensorflow_addons as tfa
-# from utils.cityscape_colormap import class_weight
-# from utils.adamW import LearningRateScheduler, poly_decay
-# import tensorflow_addons
-# sudo apt-get install libtcmalloc-minimal4
 # LD_PRELOAD="/lib/x86_64-linux-gnu/libtcmalloc_minimal.so.4" python train.py
 
 tf.keras.backend.clear_session()
@@ -26,6 +19,7 @@ parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 �
 parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=100)
 parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.1)
 parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.0001)
+parser.add_argument("--optimizer",     type=str,   help="Optimizer", default='sgd')
 parser.add_argument("--model_name",     type=str,   help="저장될 모델 이름",
                     default=str(time.strftime('%m%d', time.localtime(time.time()))))
 parser.add_argument("--dataset_dir",    type=str,   help="데이터셋 다운로드 디렉토리 설정", default='./datasets/')
@@ -38,6 +32,7 @@ parser.add_argument("--distribution_mode",  type=bool,  help="분산 학습 모�
 
 args = parser.parse_args()
 WEIGHT_DECAY = args.weight_decay
+OPTIMIZER_TYPE = args.optimizer
 BATCH_SIZE = args.batch_size
 EPOCHS = args.epoch
 base_lr = args.lr
@@ -65,8 +60,8 @@ if DISTRIBUTION_MODE == 'multi':
         tf.distribute.experimental.CollectiveCommunication.NCCL)
 
 else:
-    mirrored_strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
-    # mirrored_strategy = tf.distribute.MirroredStrategy()
+    # mirrored_strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
+    mirrored_strategy = tf.distribute.MirroredStrategy()
 
 
 with mirrored_strategy.scope():
@@ -98,35 +93,33 @@ with mirrored_strategy.scope():
     testCallBack = Scalar_LR('test', TENSORBOARD_DIR)
     tensorboard = tf.keras.callbacks.TensorBoard(log_dir=TENSORBOARD_DIR, write_graph=True, write_images=True)
 
-    optimizer = tf.keras.optimizers.SGD(momentum=0.9, learning_rate=base_lr)
+    if OPTIMIZER_TYPE == 'sgd':
+        optimizer = tf.keras.optimizers.SGD(momentum=0.9, learning_rate=base_lr)
+    else:
+        optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
 
     if MIXED_PRECISION:
         optimizer = mixed_precision.LossScaleOptimizer(optimizer, loss_scale='dynamic')  # tf2.4.1 이전
 
 
-    callback = [tensorboard, testCallBack, CustomLearningRateScheduler(lr_schedule), checkpoint_val_loss, checkpoint_val_accuracy]
+    callback = [tensorboard, testCallBack, CustomLearningRateScheduler(lr_schedule),
+                checkpoint_val_loss, checkpoint_val_accuracy]
 
     loss = Loss(BATCH_SIZE)
 
-    model = seg_model_build(image_size=IMAGE_SIZE)
-
-    # if USE_WEIGHT_DECAY:
-    #     regularizer = tf.keras.regularizers.l2(WEIGHT_DECAY)
-    #     for layer in model.layers:
-    #         for attr in ['kernel_regularizer', 'bias_regularizer']:
-    #             if hasattr(layer, attr) and layer.trainable:
-    #                 setattr(layer, attr, regularizer)
-
+    model = seg_model_build(image_size=IMAGE_SIZE, mode='cls', augment=False, weight_decay=WEIGHT_DECAY,
+                            optimizer=OPTIMIZER_TYPE)
     model.compile(
         optimizer=optimizer,
         loss=loss.sparse_categorical_loss,
-        metrics=[tf.keras.metrics.SparseTopKCategoricalAccuracy(k=1, name='top1'), tf.keras.metrics.SparseTopKCategoricalAccuracy(k=5, name='top5')])
+        metrics=[tf.keras.metrics.SparseTopKCategoricalAccuracy(k=1, name='top1'),
+                 tf.keras.metrics.SparseTopKCategoricalAccuracy(k=5, name='top5')])
+
     if LOAD_WEIGHT:
         weight_name = '_0916_best_backbone_accuracy'
         model.load_weights(CHECKPOINT_DIR + weight_name + '.h5')
 
     model.summary()
-    # print(get_flops(model))
 
     history = model.fit(train_data,
             validation_data=valid_data,

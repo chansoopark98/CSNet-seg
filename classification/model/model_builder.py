@@ -1,11 +1,22 @@
-from classification.model.imageNet_model import ddrnet_23_slim, seg_model
-# from classification.model.ddrnet_23_slim import ddrnet_23_slim_seg
+from classification.model.imageNet_model import DDRNet
+import tensorflow as tf
 
-def seg_model_build(image_size, mode='cls', augment=False):
+def seg_model_build(image_size, mode='cls', augment=False, weight_decay=0.0001, optimizer='sgd'):
     if mode == 'cls':
-        model = ddrnet_23_slim(input_shape=(image_size[0], image_size[1], 3), augment=augment)
+        base = DDRNet(augment=augment, weight_decay=weight_decay, sync_batch=False,
+                      optimizer=optimizer, bn_type='default')
+        model = base.classification_model(input_shape=(image_size[0], image_size[1], 3))
+
     else:
-        # model = seg_model(input_shape=(image_size[0], image_size[1], 3))
-        model = seg_model(input_shape=(image_size[0], image_size[1], 3), num_classes=19, augment=augment)
+        base = DDRNet(augment=augment, weight_decay=weight_decay, sync_batch=True,
+                      optimizer=optimizer, bn_type='sync')
+        model = base.seg_model(input_shape=(image_size[0], image_size[1], 3), num_classes=19, augment=augment)
+
+    # set weight initializers
+    for layer in model.layers:
+        if hasattr(layer, 'kernel_initializer'):
+            layer.kernel_initializer = tf.keras.initializers.he_normal()
+        if hasattr(layer, 'depthwise_initializer'):
+            layer.depthwise_initializer = tf.keras.initializers.he_normal()
 
     return model

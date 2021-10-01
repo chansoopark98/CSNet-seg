@@ -101,30 +101,21 @@ class CityScapes:
 
     @tf.function
     def augmentation(self, img, labels):
-        # if tf.random.uniform([], minval=0, maxval=1) > 0.75:
-        #     img = tf.image.random_hue(img, 0.08)
-        #     img = tf.image.random_saturation(img, 0.6, 1.6)
-        #     img = tf.image.random_brightness(img, 0.05)
-        #     img = tf.image.random_contrast(img, 0.7, 1.3)
+        if tf.random.uniform([], minval=0, maxval=1) > 0.5:
+            img = tf.image.random_saturation(img, 0.6, 1.6)
+        if tf.random.uniform([], minval=0, maxval=1) > 0.5:
+            img = tf.image.random_brightness(img, 0.05)
+        if tf.random.uniform([], minval=0, maxval=1) > 0.5:
+            img = tf.image.random_contrast(img, 0.7, 1.3)
 
         if tf.random.uniform([], minval=0, maxval=1) > 0.5:
             img = tf.image.flip_left_right(img)
             labels = tf.image.flip_left_right(labels)
 
-        # if tf.random.uniform([], minval=0, maxval=1) > 0.5:
-        #     img, labels = self.zoom(img, labels)
-
-        # if tf.random.uniform([], minval=0, maxval=1) > 0.5:
-        #     img, labels = self.rotate(img, labels)
-
         img = tf.cast(img, dtype=tf.float32)
-        labels = tf.cast(labels, dtype=tf.int64)
+        labels = tf.cast(labels, dtype=tf.int32)
 
         img = (img - self.mean) / self.std
-        # img = preprocess_input(img, mode='torch')
-
-
-        # labels = tf.cast(labels, dtype=tf.int64)
 
         return (img, labels)
 
@@ -153,9 +144,9 @@ class CityScapes:
         train_data = train_data.shuffle(1000)
         train_data = train_data.map(self.preprocess, num_parallel_calls=AUTO)
         train_data = train_data.map(self.augmentation, num_parallel_calls=AUTO)
+        train_data = train_data.padded_batch(self.batch_size)
         train_data = train_data.prefetch(AUTO)
         train_data = train_data.repeat()
-        train_data = train_data.padded_batch(self.batch_size)
 
         return train_data
 

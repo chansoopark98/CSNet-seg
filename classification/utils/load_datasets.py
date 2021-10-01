@@ -47,13 +47,11 @@ class GenerateDatasets:
 
     @tf.function
     def augmentation(self, img, labels):
-        if tf.random.uniform([], 0, 1) > 0.5:
+        img = tf.cast(img, tf.float32)
+        if tf.random.uniform([], 0, 1) > 0.75:
             img = tf.image.random_hue(img, 0.08)
-        if tf.random.uniform([], 0, 1) > 0.5:
             img = tf.image.random_saturation(img, 0.6, 1.6)
-        if tf.random.uniform([], 0, 1) > 0.5:
             img = tf.image.random_brightness(img, 0.05)
-        if tf.random.uniform([], 0, 1) > 0.5:
             img = tf.image.random_contrast(img, 0.7, 1.3)
 
         if tf.random.uniform([], 0, 1) > 0.5:
@@ -70,7 +68,7 @@ class GenerateDatasets:
         return (img, labels)
 
     @tf.function
-    def zoom(self, x, scale_min=0.6, scale_max=1.6):
+    def zoom(self, x, scale_min=0.8, scale_max=1.2):
         h, w, _ = x.shape
         scale = tf.random.uniform([], scale_min, scale_max)
         nh = h * scale
@@ -80,7 +78,7 @@ class GenerateDatasets:
         return x
 
     @tf.function
-    def rotate(self, x, angle=(-45, 45)):
+    def rotate(self, x, angle=(-40, 40)):
         angle = tf.random.uniform([], angle[0], angle[1], tf.float32)
         theta = np.pi * angle / 180
 
@@ -88,31 +86,59 @@ class GenerateDatasets:
         return x
 
     @tf.function
+    def resize_image(self, image, shape=(224, 224)):
+        target_width = shape[0]
+        target_height = shape[1]
+        initial_width = tf.shape(image)[0]
+        initial_height = tf.shape(image)[1]
+        im = image
+        ratio = 0
+        if (initial_width < initial_height):
+            ratio = tf.cast(256 / initial_width, tf.float32)
+            h = tf.cast(initial_height, tf.float32) * ratio
+            im = tf.image.resize(im, (256, h), method="bicubic")
+        else:
+            ratio = tf.cast(256 / initial_height, tf.float32)
+            w = tf.cast(initial_width, tf.float32) * ratio
+            im = tf.image.resize(im, (w, 256), method="bicubic")
+        width = tf.shape(im)[0]
+        height = tf.shape(im)[1]
+        startx = width // 2 - (target_width // 2)
+        starty = height // 2 - (target_height // 2)
+        im = tf.image.crop_to_bounding_box(im, startx, starty, target_width, target_height)
+        return im
+
+    @tf.function
     def preprocess(self, sample):
-        img = tf.cast(sample['image'], dtype=tf.float32)
+        img = sample['image']
         label = sample['label']
 
         # img = tf.image.random_crop(img, (self.image_size[0], self.image_size[1], 3))
         # img = tf.image.resize(img, (self.image_size[0], self.image_size[1]))
-        img = tf.image.resize(img, (256, 256))
-        img = tf.image.random_crop(img, (self.image_size[0], self.image_size[1], 3))
+        # img = tf.image.resize_with_pad(img, 256, 256)
+        img = tf.image.resize_with_crop_or_pad(img, 224, 224)
+
+        # img = tf.image.random_crop(img, (self.image_size[0], self.image_size[1], 3))
+
+        # img = self.resize_image(img, (224, 224))
 
         return (img, label)
 
     @tf.function
     def preprocess_valid(self, sample):
-        img = sample['image']
+        img = tf.cast(sample['image'], tf.float32)
         label = sample['label']
 
         # img = tf.image.random_crop(img, (self.image_size[0], self.image_size[1], 3))
-        img = tf.image.resize(img, (self.image_size[0], self.image_size[1]))
+        # img = tf.image.resize(img, (self.image_size[0], self.image_size[1]))
+        img = self.resize_image(img, (224, 224))
 
         img = preprocess_input(img, mode='torch')
 
         return (img, label)
 
     def get_trainData(self, train_data):
-        train_data = train_data.shuffle(buffer_size=8192, reshuffle_each_iteration=True)
+        train_data = train_data.shuffle(buffer_size=10000)
         train_data = train_data.map(self.preprocess, num_parallel_calls=AUTO)
         train_data = train_data.map(self.augmentation, num_parallel_calls=AUTO)
         train_data = train_data.prefetch(AUTO)

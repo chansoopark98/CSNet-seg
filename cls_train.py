@@ -31,7 +31,7 @@ parser.add_argument("--model_name",     type=str,   help="저장될 모델 이�
 parser.add_argument("--dataset_dir",    type=str,   help="데이터셋 다운로드 디렉토리 설정", default='./datasets/')
 parser.add_argument("--checkpoint_dir", type=str,   help="모델 저장 디렉토리 설정", default='./checkpoints/')
 parser.add_argument("--tensorboard_dir",  type=str,   help="텐서보드 저장 경로", default='tensorboard')
-parser.add_argument("--use_weightDecay",  type=bool,  help="weightDecay 사용 유무", default=True)
+parser.add_argument("--use_weightDecay",  type=bool,  help="weightDecay 사용 유무", default=False)
 parser.add_argument("--load_weight",  type=bool,  help="가중치 로드", default=False)
 parser.add_argument("--mixed_precision",  type=bool,  help="mixed_precision 사용", default=True)
 parser.add_argument("--distribution_mode",  type=bool,  help="분산 학습 모드 설정 mirror or multi", default='mirror')
@@ -88,11 +88,11 @@ with mirrored_strategy.scope():
 
     reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.9, patience=3, min_lr=1e-5, verbose=1)
 
-    checkpoint_val_loss = ModelCheckpoint(CHECKPOINT_DIR + '_' + SAVE_MODEL_NAME + '_best_loss.h5',
+    checkpoint_val_loss = ModelCheckpoint(CHECKPOINT_DIR + '_' + SAVE_MODEL_NAME + '_imagenet_best_loss.h5',
                                           monitor='val_loss', save_best_only=True, save_weights_only=True, verbose=1)
 
-    checkpoint_val_accuracy = ModelCheckpoint(CHECKPOINT_DIR + '_' + SAVE_MODEL_NAME + '_best_accuracy.h5',
-                                          monitor='val_accuracy', save_best_only=True, save_weights_only=True, verbose=1, mode='max')
+    checkpoint_val_accuracy = ModelCheckpoint(CHECKPOINT_DIR + '_' + SAVE_MODEL_NAME + '_imagenet_best_top1_accuracy.h5',
+                                          monitor='val_top1', save_best_only=True, save_weights_only=True, verbose=1, mode='max')
 
 
     testCallBack = Scalar_LR('test', TENSORBOARD_DIR)
@@ -110,17 +110,17 @@ with mirrored_strategy.scope():
 
     model = seg_model_build(image_size=IMAGE_SIZE)
 
-    if USE_WEIGHT_DECAY:
-        regularizer = tf.keras.regularizers.l2(WEIGHT_DECAY)
-        for layer in model.layers:
-            for attr in ['kernel_regularizer']:
-                if hasattr(layer, attr) and layer.trainable:
-                    setattr(layer, attr, regularizer)
+    # if USE_WEIGHT_DECAY:
+    #     regularizer = tf.keras.regularizers.l2(WEIGHT_DECAY)
+    #     for layer in model.layers:
+    #         for attr in ['kernel_regularizer', 'bias_regularizer']:
+    #             if hasattr(layer, attr) and layer.trainable:
+    #                 setattr(layer, attr, regularizer)
 
     model.compile(
         optimizer=optimizer,
         loss=loss.sparse_categorical_loss,
-        metrics=['accuracy', tf.keras.metrics.SparseTopKCategoricalAccuracy(k=5, name='top5')])
+        metrics=[tf.keras.metrics.SparseTopKCategoricalAccuracy(k=1, name='top1'), tf.keras.metrics.SparseTopKCategoricalAccuracy(k=5, name='top5')])
     if LOAD_WEIGHT:
         weight_name = '_0916_best_backbone_accuracy'
         model.load_weights(CHECKPOINT_DIR + weight_name + '.h5')

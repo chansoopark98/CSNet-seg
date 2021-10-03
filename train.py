@@ -21,7 +21,7 @@ import tensorflow_addons as tfa
 tf.keras.backend.clear_session()
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=32)
+parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=64)
 parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=484)
 parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.01)
 parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.0005)
@@ -34,7 +34,7 @@ parser.add_argument("--tensorboard_dir",  type=str,   help="텐서보드 저장 
 parser.add_argument("--use_weightDecay",  type=bool,  help="weightDecay 사용 유무", default=False)
 parser.add_argument("--load_weight",  type=bool,  help="가중치 로드", default=False)
 parser.add_argument("--mixed_precision",  type=bool,  help="mixed_precision 사용", default=True)
-parser.add_argument("--distribution_mode",  type=bool,  help="분산 학습 모드 설정", default=False)
+parser.add_argument("--distribution_mode",  type=bool,  help="분산 학습 모드 설정", default=True)
 
 args = parser.parse_args()
 WEIGHT_DECAY = args.weight_decay
@@ -100,7 +100,7 @@ else:
 if MIXED_PRECISION:
     optimizer = mixed_precision.LossScaleOptimizer(optimizer, loss_scale='dynamic')  # tf2.4.1 이전
 
-mIoU = MeanIOU(19)
+
 callback = [checkpoint_val_miou,  tensorboard, testCallBack, lr_scheduler]
 
 
@@ -114,7 +114,7 @@ if DISTRIBUTION_MODE:
         print("Number of devices: {}".format(mirrored_strategy.num_replicas_in_sync))
         train_data = mirrored_strategy.experimental_distribute_dataset(train_data)
         valid_data = mirrored_strategy.experimental_distribute_dataset(valid_data)
-
+        mIoU = MeanIOU(19)
         loss = Seg_loss(BATCH_SIZE, distribute_mode=True)
         aux_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True)
 
@@ -131,7 +131,7 @@ if DISTRIBUTION_MODE:
             metrics=[mIoU])
 
         if LOAD_WEIGHT:
-            weight_name = '_0811_best_miou'
+            weight_name = '_1002_best_miou'
             model.load_weights(CHECKPOINT_DIR + weight_name + '.h5')
 
         model.summary()
@@ -144,7 +144,7 @@ if DISTRIBUTION_MODE:
                 callbacks=callback)
 
 else:
-
+    mIoU = MeanIOU(19)
     loss = Seg_loss(BATCH_SIZE, distribute_mode=False)
     aux_loss = Seg_loss(BATCH_SIZE, distribute_mode=False, use_aux=True)
 

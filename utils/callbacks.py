@@ -1,6 +1,7 @@
 import tensorflow as tf
 import psutil
 
+
 class Scalar_LR(tf.keras.callbacks.Callback):
     def __init__(self, name, TENSORBOARD_DIR):
         super().__init__()
@@ -8,7 +9,6 @@ class Scalar_LR(tf.keras.callbacks.Callback):
         # self.previous_loss = None
         self.file_writer = tf.summary.create_file_writer(TENSORBOARD_DIR)
         self.file_writer.set_as_default()
-
 
     def on_epoch_end(self, epoch, logs=None):
         logs['learning rate'] = self.model.optimizer.lr
@@ -19,13 +19,14 @@ class Scalar_LR(tf.keras.callbacks.Callback):
 
 
 class DecayHistory(tf.keras.callbacks.Callback):
+
     def on_train_begin(self, logs={}):
         self.lr = []
         self.wd = []
+
     def on_batch_end(self, batch, logs={}):
         self.lr.append(self.model.optimizer.lr(self.model.optimizer.iterations))
         self.wd.append(self.model.optimizer.weight_decay)
-
 
     def on_epoch_end(self, epoch, logs={}):
         print("end_batch lr : ",self.model.optimizer.lr)

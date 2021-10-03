@@ -20,7 +20,7 @@ def setBatchNorm(bn_type: str):
         return tf.keras.layers.BatchNormalization
 
 class DDRNet:
-    def __init__(self, augment: bool, weight_decay : float, sync_batch: bool, optimizer: str, bn_type: str):
+    def __init__(self, augment: bool, weight_decay: float, sync_batch: bool, optimizer: str, bn_type: str):
         self.augment = augment
         self.use_sync_batch = sync_batch
         self.l2 = setWeightDecay(optimizer=optimizer, weight_decay=weight_decay)

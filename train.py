@@ -107,8 +107,8 @@ callback = [checkpoint_val_miou,  tensorboard, testCallBack, lr_scheduler]
 if DISTRIBUTION_MODE:
     # mirrored_strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy(
     #     tf.distribute.experimental.CollectiveCommunication.NCCL)
-    # mirrored_strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
-    mirrored_strategy = tf.distribute.MirroredStrategy()
+    mirrored_strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
+    # mirrored_strategy = tf.distribute.MirroredStrategy()
 
     with mirrored_strategy.scope():
         print("Number of devices: {}".format(mirrored_strategy.num_replicas_in_sync))

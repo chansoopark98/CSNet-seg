@@ -89,8 +89,9 @@ class CityScapes:
         img = tf.cast(img, dtype=tf.float32)
         labels = tf.cast(labels, dtype=tf.int64)
 
-        img = (img - self.mean) / self.std
-        # img = preprocess_input(img, mode='torch')
+        img = preprocess_input(img, mode='torch')
+        # img = (img - self.mean) / self.std
+
 
         return (img, labels)
 
@@ -112,7 +113,8 @@ class CityScapes:
         img = tf.cast(img, dtype=tf.float32)
         labels = tf.cast(labels, dtype=tf.int32)
 
-        img = (img - self.mean) / self.std
+        img = preprocess_input(img, mode='torch')
+        # img = (img - self.mean) / self.std
 
         return (img, labels)
 

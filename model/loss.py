@@ -103,12 +103,13 @@ class SparseCategoricalFocalLoss(tf.keras.losses.Loss):
 import tensorflow.keras.backend as K
 
 class Seg_loss:
-    def __init__(self, batch_size, use_aux=False, distribute_mode=True):
+    def __init__(self, batch_size, use_aux=False, distribute_mode=True, use_focal=False):
         self.batch_size = batch_size
         self.alpha = 0.25
         self.gamma = 2.0
         self.num_classes = 19
         self.distribute_mode = distribute_mode
+        self.use_focal = use_focal
 
         if use_aux:
             self.aux_factor = 0.4
@@ -126,9 +127,11 @@ class Seg_loss:
 
 
         if self.distribute_mode:
-            ce_loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True,
-                                                                reduction=tf.keras.losses.Reduction.NONE)(y_true=gt,
-                                                                                                          y_pred=prediction)
+            # ce_loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True,
+            #                                                     reduction=tf.keras.losses.Reduction.NONE)(y_true=gt,
+            #                                                                                               y_pred=prediction)
+
+            ce_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=gt, logits=prediction))
         else:
             ce_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=gt, logits=prediction))
 

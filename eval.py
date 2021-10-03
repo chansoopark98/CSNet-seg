@@ -11,7 +11,7 @@ from utils.cityscape_colormap import color_map
 tf.keras.backend.clear_session()
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=8)
+parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=1)
 parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=100)
 parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.001)
 parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.0005)
@@ -60,34 +60,34 @@ test_steps = dataset.number_valid // BATCH_SIZE
 
 test_set = dataset.get_testData(dataset.valid_data)
 
-
-# if DISTRIBUTION_MODE == 'multi':
-#     mirrored_strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy(
-#         tf.distribute.experimental.CollectiveCommunication.NCCL)
-#
-# else:
-#     mirrored_strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
-# print("Number of devices: {}".format(mirrored_strategy.num_replicas_in_sync))
-#
-# with mirrored_strategy.scope():
-
-model = seg_model_build(image_size=IMAGE_SIZE, mode='seg', augment=False)
-weight_name = '_0927_best_miou'
+model = seg_model_build(image_size=IMAGE_SIZE, mode='seg', augment=True, weight_decay=WEIGHT_DECAY, num_classes=19)
+weight_name = '_1002_best_miou'
 model.load_weights(CHECKPOINT_DIR + weight_name + '.h5',by_name=True)
 model.summary()
 
 class MeanIOU(tf.keras.metrics.MeanIoU):
     def update_state(self, y_true, y_pred, sample_weight=None):
+        # y_true = tf.squeeze(y_true, axis=-1)
+        # y_true = tf.reshape(y_true, [-1,])
+        #
+        # raw_prediction = tf.reshape(y_pred, [-1,])
+        # indices = tf.squeeze(tf.where(tf.less_equal(y_true, self.num_classes-1)), 1)
+        # y_true = tf.cast(tf.gather(y_true, indices), tf.int32)
+        # y_pred = tf.gather(raw_prediction, indices)
+
+
         y_true = tf.squeeze(y_true, axis=-1)
-        y_true = tf.reshape(y_true, [-1,])
+        y_pred += 1
 
-        raw_prediction = tf.reshape(y_pred, [-1,])
-        indices = tf.squeeze(tf.where(tf.less_equal(y_true, self.num_classes-1)), 1)
-        y_true = tf.cast(tf.gather(y_true, indices), tf.int32)
-        y_pred = tf.gather(raw_prediction, indices)
+        zeros_y_pred = tf.zeros(tf.shape(y_pred), tf.int64)
+        zeros_y_pred += y_pred
+        indices = tf.cast(tf.where(tf.equal(y_true, 0), 0, 1), tf.int64)
+
+        y_true *= indices
+        zeros_y_pred *= indices
 
 
-        return super().update_state(y_true, y_pred, sample_weight)
+        return super().update_state(y_true, zeros_y_pred, sample_weight)
 
 metric = MeanIOU(20)
 buffer = 0
@@ -96,15 +96,19 @@ save_path = './checkpoints/results/'+SAVE_MODEL_NAME+'/'
 os.makedirs(save_path, exist_ok=True)
 for x, y in tqdm(test_set, total=test_steps):
     pred = model.predict_on_batch(x)#pred = tf.nn.softmax(pred)
-    pred = tf.argmax(pred, axis=-1)
+    pred = pred[0]
 
-    for i in range(len(pred)):
-        metric.update_state(y[i], pred[i])
-        buffer += metric.result().numpy()
+    arg_pred = tf.math.argmax(pred, axis=-1)
 
-        r = pred[i]
-        g = pred[i]
-        b = pred[i]
+    for i in range(len(arg_pred)):
+        metric.update_state(y[i], arg_pred[i])
+        batch_miou = metric.result().numpy()
+        print(batch_miou)
+        buffer += batch_miou
+
+        r = arg_pred[i]
+        g = arg_pred[i]
+        b = arg_pred[i]
 
         for j in range(19):
             r = tf.where(tf.equal(r, j), color_map[j][0], r)

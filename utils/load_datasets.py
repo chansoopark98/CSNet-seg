@@ -53,14 +53,11 @@ class CityScapes:
         img = sample['image_left']
         labels = sample['segmentation_label']
 
-        # img = tf.image.resize(img, (512, 1024))
-        # labels = tf.image.resize(labels, (512, 1024))
-
         img = tf.cast(img, dtype=tf.float32)
         labels = tf.cast(labels, dtype=tf.int64)
 
-
-        img = preprocess_input(img, mode='torch')
+        # img = preprocess_input(img, mode='torch')
+        img = (img - self.mean) / self.std
 
 
         return (img, labels)

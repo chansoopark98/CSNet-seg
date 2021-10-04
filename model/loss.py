@@ -116,6 +116,22 @@ class Seg_loss:
         else:
             self.aux_factor = 1
 
+        # self.class_weight = {0: 0.8373, 1: 0.918, 2: 0.866, 3: 1.0345,
+        #                 4: 1.0166, 5: 0.9969, 6: 0.9754, 7: 1.0489,
+        #                 8: 0.8786, 9: 1.0023, 10: 0.9539, 11: 0.9843,
+        #                 12: 1.1116, 13: 0.9037, 14: 1.0865, 15: 1.0955,
+        #                 16: 1.0865, 17: 1.1529, 18: 1.0507}
+
+        self.class_weight = (0.8373, 0.918, 0.866, 1.0345,
+                        1.0166, 0.9969, 0.9754, 1.0489,
+                        0.8786, 1.0023, 0.9539, 0.9843,
+                        1.1116, 0.9037, 1.0865, 1.0955,
+                        1.0865, 1.1529, 1.0507)
+
+        self.cls_weight = tf.constant(self.class_weight, tf.float32)
+
+
+
     def ce_loss(self, y_true, y_pred):
         y_true = tf.squeeze(y_true, axis=3)
         y_true = tf.reshape(y_true, [-1,])
@@ -127,31 +143,59 @@ class Seg_loss:
 
 
         if self.distribute_mode:
-            # ce_loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True,
-            #                                                     reduction=tf.keras.losses.Reduction.NONE)(y_true=gt,
-            #                                                                                               y_pred=prediction)
+            ce_loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True,
+                                                                reduction=tf.keras.losses.Reduction.NONE)(y_true=gt,
+                                                                                                          y_pred=prediction)
 
-            ce_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=gt, logits=prediction))
+
+            # ce_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=gt, logits=prediction)
+
+            weights = tf.gather(self.cls_weight, gt)
+            ce_loss = tf.reduce_mean((ce_loss * weights) * self.aux_factor)
+            # ce_loss *= self.cls_weight
+
         else:
             ce_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=gt, logits=prediction))
 
-        total_loss = ce_loss * self.aux_factor
+        # total_loss = ce_loss * self.aux_factor
 
-        return total_loss
+        return ce_loss
 
     def focal_loss(self, y_true, y_pred):
+        y_true = tf.squeeze(y_true, axis=3)
+        y_true = tf.reshape(y_true, [-1,])
 
-        y_true = tf.squeeze(y_true, axis=-1)
-        probs = tf.nn.softmax(y_pred, axis=-1)
-        ce = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True,
-                                                             reduction=tf.keras.losses.Reduction.NONE)(y_true=y_true, y_pred=y_pred)
+        raw_prediction = tf.reshape(y_pred, [-1, self.num_classes])
+        indices = tf.squeeze(tf.where(tf.less_equal(y_true, self.num_classes-1)), 1)
+        gt = tf.cast(tf.gather(y_true, indices), tf.int32)
+        prediction = tf.gather(raw_prediction, indices)
+        prob = tf.nn.softmax(prediction, axis=-1)
 
-        y_true_rank = y_true.shape.rank
-        probs = tf.gather(probs, y_true, axis=-1, batch_dims=y_true_rank)
+        if self.distribute_mode:
+            ce_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=gt, logits=prediction)
+
+        else:
+            ce_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=gt, logits=prediction)
+
+        y_true_rank = gt.shape.rank
+        probs = tf.gather(prob, gt, axis=-1, batch_dims=y_true_rank)
 
         focal_modulation = (1 - probs) ** self.gamma
-        loss = focal_modulation * ce #* self.alpha
+        fl_loss = (focal_modulation * ce_loss) * self.aux_factor
+        loss = tf.reduce_mean(fl_loss)
+
+        # y_true = tf.squeeze(y_true, axis=-1)
+        # probs = tf.nn.softmax(y_pred, axis=-1)
+        # ce = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True,
+        #                                                      reduction=tf.keras.losses.Reduction.NONE)(y_true=y_true, y_pred=y_pred)
+        #
+        # y_true_rank = y_true.shape.rank
+        # probs = tf.gather(probs, y_true, axis=-1, batch_dims=y_true_rank)
+        #
+        # focal_modulation = (1 - probs) ** self.gamma
+        # loss = focal_modulation * ce #* self.alpha
         # loss = K.mean(fl_loss)
+
 
         return loss
 

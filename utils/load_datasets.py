@@ -80,41 +80,49 @@ class CityScapes:
         img = sample['image_left']
         labels = sample['segmentation_label']-1
 
-        concat_img = tf.concat([img, labels], axis=-1)
-        concat_img = tf.image.random_crop(concat_img, (self.image_size[0], self.image_size[1], 4))
+        # concat_img = tf.concat([img, labels], axis=-1)
+        # concat_img = tf.image.random_crop(concat_img, (self.image_size[0], self.image_size[1], 4))
+        #
+        # img = concat_img[:, :, :3]
+        # labels = concat_img[:, :, 3:]
 
-        img = concat_img[:, :, :3]
-        labels = concat_img[:, :, 3:]
+        img = tf.image.central_crop(img, 0.5)
+        labels = tf.image.central_crop(labels, 0.5)
 
         img = tf.cast(img, dtype=tf.float32)
         labels = tf.cast(labels, dtype=tf.int64)
 
-        img = preprocess_input(img, mode='torch')
+        # img = preprocess_input(img, mode='torch')
         # img = (img - self.mean) / self.std
 
+        img = img / 255.0
+        img -= [0.485, 0.456, 0.406] # imageNet mean
+        img /= [0.229, 0.224, 0.225] # imageNet std
 
         return (img, labels)
-
 
 
     @tf.function
     def augmentation(self, img, labels):
         if tf.random.uniform([], minval=0, maxval=1) > 0.5:
-            img = tf.image.random_saturation(img, 0.6, 1.6)
+            img = tf.image.random_saturation(img, 0.5, 1.5)
         if tf.random.uniform([], minval=0, maxval=1) > 0.5:
             img = tf.image.random_brightness(img, 0.05)
         if tf.random.uniform([], minval=0, maxval=1) > 0.5:
-            img = tf.image.random_contrast(img, 0.7, 1.3)
+            img = tf.image.random_contrast(img, 0.5, 1.5)
 
         if tf.random.uniform([], minval=0, maxval=1) > 0.5:
             img = tf.image.flip_left_right(img)
             labels = tf.image.flip_left_right(labels)
 
         img = tf.cast(img, dtype=tf.float32)
-        labels = tf.cast(labels, dtype=tf.int32)
+        labels = tf.cast(labels, dtype=tf.int64)
 
-        img = preprocess_input(img, mode='torch')
+        # img = preprocess_input(img, mode='torch')
         # img = (img - self.mean) / self.std
+        img = img / 255.0
+        img -= [0.485, 0.456, 0.406] # imageNet mean
+        img /= [0.229, 0.224, 0.225] # imageNet std
 
         return (img, labels)
 

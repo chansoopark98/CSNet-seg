@@ -3,7 +3,7 @@ from tensorflow.keras.mixed_precision import experimental as mixed_precision
 from classification.model.model_builder import seg_model_build
 from utils.callbacks import Scalar_LR
 from utils.load_datasets import CityScapes
-from utils.metrics import MeanIOU
+from utils.metrics import MeanIOU, MIoU
 # from model.model_builder import seg_model_build
 from model.loss import Seg_loss
 import argparse
@@ -21,7 +21,7 @@ import tensorflow_addons as tfa
 tf.keras.backend.clear_session()
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=64)
+parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=32)
 parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=484)
 parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.01)
 parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.0005)
@@ -46,7 +46,7 @@ SAVE_MODEL_NAME = args.model_name
 DATASET_DIR = args.dataset_dir
 CHECKPOINT_DIR = args.checkpoint_dir
 TENSORBOARD_DIR = args.tensorboard_dir
-IMAGE_SIZE = (1024, 1024)
+IMAGE_SIZE = (512, 1024)
 # IMAGE_SIZE = (None, None)
 USE_WEIGHT_DECAY = args.use_weightDecay
 LOAD_WEIGHT = args.load_weight
@@ -81,7 +81,7 @@ reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.9, patience=3, min_lr
 checkpoint_val_loss = ModelCheckpoint(CHECKPOINT_DIR + '_' + SAVE_MODEL_NAME + '_best_loss.h5',
                                       monitor='val_loss', save_best_only=True, save_weights_only=True, verbose=1)
 checkpoint_val_miou = ModelCheckpoint(CHECKPOINT_DIR + '_' + SAVE_MODEL_NAME + '_best_miou.h5',
-                                      monitor='val_output_mean_iou', save_best_only=True, save_weights_only=True,
+                                      monitor='val_output_m_io_u', save_best_only=True, save_weights_only=True,
                                       verbose=1, mode='max')
 testCallBack = Scalar_LR('test', TENSORBOARD_DIR)
 tensorboard = tf.keras.callbacks.TensorBoard(log_dir=TENSORBOARD_DIR, write_graph=True, write_images=True)
@@ -104,17 +104,20 @@ if MIXED_PRECISION:
 callback = [checkpoint_val_miou,  tensorboard, testCallBack, lr_scheduler]
 
 
+
 if DISTRIBUTION_MODE:
     # mirrored_strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy(
     #     tf.distribute.experimental.CollectiveCommunication.NCCL)
-    mirrored_strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
-    # mirrored_strategy = tf.distribute.MirroredStrategy()
+    # mirrored_strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
+    mirrored_strategy = tf.distribute.MirroredStrategy()
 
     with mirrored_strategy.scope():
         print("Number of devices: {}".format(mirrored_strategy.num_replicas_in_sync))
-        train_data = mirrored_strategy.experimental_distribute_dataset(train_data)
-        valid_data = mirrored_strategy.experimental_distribute_dataset(valid_data)
-        mIoU = MeanIOU(19)
+        # train_data = mirrored_strategy.experimental_distribute_dataset(train_data)
+        # valid_data = mirrored_strategy.experimental_distribute_dataset(valid_data)
+
+        # mIoU = MeanIOU(19)
+        mIoU = MIoU(20)
         loss = Seg_loss(BATCH_SIZE, distribute_mode=True)
         aux_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True)
 
@@ -144,7 +147,8 @@ if DISTRIBUTION_MODE:
                 callbacks=callback)
 
 else:
-    mIoU = MeanIOU(19)
+    # mIoU = MeanIOU(19)
+    mIoU = MIoU(20)
     loss = Seg_loss(BATCH_SIZE, distribute_mode=False)
     aux_loss = Seg_loss(BATCH_SIZE, distribute_mode=False, use_aux=True)
 
@@ -153,6 +157,7 @@ else:
 
     losses = {'output': loss.ce_loss,
               'aux': aux_loss.ce_loss
+
               }
 
     model.compile(

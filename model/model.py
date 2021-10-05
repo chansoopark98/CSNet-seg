@@ -106,8 +106,8 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
 
         model_input = base.input
         model_output = fpn_model(features=features, fpn_times=2, activation='swish', mode='deeplabv3+')
-        decoder_output = classifier(model_output, num_classes=classes)
-        aux_output = classifier(c3, num_classes=classes, use_aux=True)
+        decoder_output = classifier(model_output, num_classes=classes, name='output')
+        aux_output = classifier(c3, num_classes=classes, use_aux=True, name='aux')
 
         model_output = [decoder_output, aux_output]
 
@@ -365,7 +365,7 @@ def _xception_block(inputs, depth_list, prefix, skip_connection_type, stride,
     else:
         return outputs
 
-def classifier(x, num_classes=19, use_aux=False):
+def classifier(x, num_classes=19, use_aux=False, name=None):
     upper_factor = 4
     if use_aux:
         upper_factor = 8
@@ -374,7 +374,7 @@ def classifier(x, num_classes=19, use_aux=False):
 
 
     x = layers.Conv2D(num_classes, 1, strides=1, kernel_initializer=CONV_KERNEL_INITIALIZER)(x)
-    x = layers.UpSampling2D(size=(upper_factor, upper_factor), interpolation='bilinear')(x)
+    x = layers.UpSampling2D(size=(upper_factor, upper_factor), interpolation='bilinear', name=name)(x)
     return x
 
 def _conv_bn_relu(x, filters, kernel_size, strides=1):

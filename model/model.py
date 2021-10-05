@@ -1,5 +1,6 @@
 # from efficientnet_v2 import *
 from model.efficientnet_v2 import *
+# from model.efficientnet_v2 import EfficientNetV2S
 from model.resnet101 import *
 from tensorflow.keras import layers
 from model.fpn_model import fpn_model
@@ -63,7 +64,7 @@ class Concatenate(tf.keras.layers.Concatenate):
 
 
 
-def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classes=20, OS=16):
+def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classes=19, OS=16):
     # global aspp_size
     # bn_axis = 1 if K.image_data_format() == "channels_first" else -1
     # aspp_size = (input_shape[0] // OS, input_shape[1] // OS)
@@ -92,8 +93,9 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
         # base = EfficientNetV2S(pretrained="imagenet21k-ft1k", input_shape=input_shape, num_classes=0, dropout=0.2)
         # base = EfficientNetV2S(pretrained="imagenet", input_shape=input_shape, num_classes=0, dropout=1e-6)
         base = EfficientNetV2S(input_shape=input_shape, pretrained="imagenet")
+
         base.summary()
-        # base.load_weights('./checkpoints/efficientnetv2-s-21k-ft1k.h5', by_name=True)
+        base.load_weights('./checkpoints/efficientnetv2-s-imagenet.h5', by_name=True)
         c5 = base.get_layer('add_34').output  # 16x32 256 or get_layer('post_swish') => 확장된 채널 1280
         # c5 = base.get_layer('post_swish').output  # 32x64 256 or get_layer('post_swish') => 확장된 채널 1280
         # c4 = base.get_layer('add_20').output  # 32x64 64
@@ -360,7 +362,7 @@ def _xception_block(inputs, depth_list, prefix, skip_connection_type, stride,
     else:
         return outputs
 
-def classifier(x, num_classes=20):
+def classifier(x, num_classes=19):
     x = layers.Conv2D(num_classes, 1, strides=1, kernel_initializer=CONV_KERNEL_INITIALIZER)(x)
     x = layers.UpSampling2D(size=(4, 4), interpolation='bilinear')(x)
     return x

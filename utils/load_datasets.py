@@ -62,9 +62,9 @@ class CityScapes:
         img = tf.cast(img, dtype=tf.float32)
         labels = tf.cast(labels, dtype=tf.int64)
 
-        if self.model_name == 'ddrnet':
-            img = imgNetNorm(img)
-        # img = preprocess_input(img, mode='torch')
+        # if self.model_name == 'ddrnet':
+        # img = imgNetNorm(img)
+        img = preprocess_input(img, mode='torch')
         # img = (img - self.mean) / self.std
 
         # img = img / 255.0
@@ -103,15 +103,15 @@ class CityScapes:
         img = tf.cast(img, dtype=tf.float32)
         labels = tf.cast(labels, dtype=tf.int64)
 
-        # img = preprocess_input(img, mode='torch')
+        img = preprocess_input(img, mode='torch')
         # img = (img - self.mean) / self.std
 
         # img = img / 255.0
         # img -= [0.485, 0.456, 0.406] # imageNet mean
         # img /= [0.229, 0.224, 0.225] # imageNet std
 
-        if self.model_name == 'ddrnet':
-            img = imgNetNorm(img)
+        # if self.model_name == 'ddrnet':
+        # img = imgNetNorm(img)
 
         return (img, labels)
 
@@ -131,18 +131,20 @@ class CityScapes:
         img = tf.cast(img, dtype=tf.float32)
         labels = tf.cast(labels, dtype=tf.int64)
 
-        if tf.random.uniform([]) > 0.5:
-            img, labels = self.zoom(img, labels, 0.8, 1.2)
+        # if tf.random.uniform([]) > 0.5:
+        #     img, labels = self.zoom(img, labels, 0.8, 1.2)
 
-        # img = preprocess_input(img, mode='torch')
+
+
+        img = preprocess_input(img, mode='torch')
         # img = (img - self.mean) / self.std
 
         # img = img / 255.0
         # img -= [0.485, 0.456, 0.406] # imageNet mean
         # img /= [0.229, 0.224, 0.225] # imageNet std
 
-        if self.model_name == 'ddrnet':
-            img = imgNetNorm(img)
+        # if self.model_name == 'ddrnet':
+        # img = imgNetNorm(img)
 
         return (img, labels)
 

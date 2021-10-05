@@ -1,6 +1,7 @@
 from tensorflow.keras.callbacks import ReduceLROnPlateau, ModelCheckpoint
 from tensorflow.keras.mixed_precision import experimental as mixed_precision
-from ddrnet_23_slim.model.model_builder import seg_model_build
+# from ddrnet_23_slim.model.model_builder import seg_model_build
+from model.model_builder import seg_model_build
 from utils.callbacks import Scalar_LR
 from utils.load_datasets import CityScapes
 from utils.metrics import MeanIOU, MIoU
@@ -21,11 +22,11 @@ import tensorflow_addons as tfa
 tf.keras.backend.clear_session()
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=32)
-parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=484)
-parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.01)
+parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=16)
+parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=120)
+parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.001)
 parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.0005)
-parser.add_argument("--optimizer",     type=str,   help="Optimizer", default='sgd')
+parser.add_argument("--optimizer",     type=str,   help="Optimizer", default='adam')
 parser.add_argument("--model_name",     type=str,   help="저장될 모델 이름",
                     default=str(time.strftime('%m%d', time.localtime(time.time()))))
 parser.add_argument("--dataset_dir",    type=str,   help="데이터셋 다운로드 디렉토리 설정", default='./datasets/')
@@ -62,8 +63,8 @@ os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
 TRAIN_INPUT_IMAGE_SIZE = IMAGE_SIZE
 VALID_INPUT_IMAGE_SIZE = IMAGE_SIZE
-train_dataset_config = CityScapes(DATASET_DIR, TRAIN_INPUT_IMAGE_SIZE, BATCH_SIZE, mode='train')
-valid_dataset_config = CityScapes(DATASET_DIR, VALID_INPUT_IMAGE_SIZE, BATCH_SIZE, mode='validation')
+train_dataset_config = CityScapes(DATASET_DIR, TRAIN_INPUT_IMAGE_SIZE, BATCH_SIZE, mode='train', model_name='effnet')
+valid_dataset_config = CityScapes(DATASET_DIR, VALID_INPUT_IMAGE_SIZE, BATCH_SIZE, mode='validation', model_name='effnet')
 
 train_data = train_dataset_config.get_trainData(train_dataset_config.train_data)
 # train_data = mirrored_strategy.experimental_distribute_dataset(train_data)
@@ -81,7 +82,7 @@ reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.9, patience=3, min_lr
 checkpoint_val_loss = ModelCheckpoint(CHECKPOINT_DIR + '_' + SAVE_MODEL_NAME + '_best_loss.h5',
                                       monitor='val_loss', save_best_only=True, save_weights_only=True, verbose=1)
 checkpoint_val_miou = ModelCheckpoint(CHECKPOINT_DIR + '_' + SAVE_MODEL_NAME + '_best_miou.h5',
-                                      monitor='val_output_m_io_u', save_best_only=True, save_weights_only=True,
+                                      monitor='val_m_io_u', save_best_only=True, save_weights_only=True,
                                       verbose=1, mode='max')
 testCallBack = Scalar_LR('test', TENSORBOARD_DIR)
 tensorboard = tf.keras.callbacks.TensorBoard(log_dir=TENSORBOARD_DIR, write_graph=True, write_images=True)
@@ -124,13 +125,13 @@ if DISTRIBUTION_MODE:
         model = seg_model_build(image_size=IMAGE_SIZE, mode='seg', augment=True, weight_decay=WEIGHT_DECAY,
                                 optimizer=OPTIMIZER_TYPE)
 
-        losses = {'output': loss.ce_loss,
-                  'aux': aux_loss.ce_loss
-                  }
+        # losses = {'output': loss.ce_loss,
+        #           'aux': aux_loss.ce_loss
+        #           }
 
         model.compile(
             optimizer=optimizer,
-            loss=losses,
+            loss=loss.ce_loss,
             metrics=[mIoU])
 
         if LOAD_WEIGHT:

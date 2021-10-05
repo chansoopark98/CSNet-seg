@@ -27,6 +27,7 @@ from tensorflow.keras.layers import (
 BATCH_NORM_DECAY = 0.9
 BATCH_NORM_EPSILON = 0.001
 CONV_KERNEL_INITIALIZER = keras.initializers.VarianceScaling(scale=2.0, mode="fan_out", distribution="truncated_normal")
+CONV_KERNEL_REGULARZIZER = tf.keras.regularizers.l2(0.0005/2)
 # CONV_KERNEL_INITIALIZER = 'glorot_uniform'
 
 BLOCK_CONFIGS = {
@@ -79,7 +80,7 @@ BLOCK_CONFIGS = {
         "expands": [1, 4, 4, 4, 6, 6],
         "out_channels": [24, 48, 64, 128, 160, 256],
         "depthes": [2, 4, 4, 6, 9, 15],
-        "strides": [1, 2, 2, 2, 1, 2],
+        "strides": [1, 2, 2, 2, 1, 1],
         "use_ses": [0, 0, 0, 1, 1, 1],
     },
     "m": {  # width 1.6, depth 2.2
@@ -150,7 +151,10 @@ def _make_divisible(v, divisor=4, min_value=None):
 
 
 def conv2d_no_bias(inputs, filters, kernel_size, strides=1, padding="VALID", name=""):
-    return Conv2D(filters, kernel_size, strides=strides, padding=padding, use_bias=False, kernel_initializer=CONV_KERNEL_INITIALIZER, name=name + "conv")(
+    return Conv2D(filters, kernel_size, strides=strides, padding=padding, use_bias=False,
+                  kernel_initializer=CONV_KERNEL_INITIALIZER,
+                  kernel_regularizer=CONV_KERNEL_REGULARZIZER,
+                  name=name + "conv")(
         inputs
     )
 
@@ -162,6 +166,7 @@ def batchnorm_with_activation(inputs, activation="swish", name=""):
         axis=bn_axis,
         momentum=BATCH_NORM_DECAY,
         epsilon=BATCH_NORM_EPSILON,
+        trainable=True,
         name=name + "bn",
     )(inputs)
     if activation:
@@ -180,10 +185,14 @@ def se_module(inputs, se_ratio=4, name=""):
     # se = GlobalAveragePooling2D()(inputs)
     # se = Reshape((1, 1, filters))(se)
     se = tf.reduce_mean(inputs, [h_axis, w_axis], keepdims=True)
-    se = Conv2D(reduction, kernel_size=1, use_bias=True, kernel_initializer=CONV_KERNEL_INITIALIZER, name=name + "1_conv")(se)
+    se = Conv2D(reduction, kernel_size=1, use_bias=True, kernel_initializer=CONV_KERNEL_INITIALIZER,
+                kernel_regularizer=CONV_KERNEL_REGULARZIZER,
+                name=name + "1_conv")(se)
     # se = PReLU(shared_axes=[1, 2])(se)
     se = Activation("swish")(se)
-    se = Conv2D(filters, kernel_size=1, use_bias=True, kernel_initializer=CONV_KERNEL_INITIALIZER, name=name + "2_conv")(se)
+    se = Conv2D(filters, kernel_size=1, use_bias=True, kernel_initializer=CONV_KERNEL_INITIALIZER,
+                kernel_regularizer=CONV_KERNEL_REGULARZIZER,
+                name=name + "2_conv")(se)
     se = Activation("sigmoid")(se)
     return Multiply()([inputs, se])
 
@@ -203,7 +212,10 @@ def MBConv(inputs, output_channel, stride, expand_ratio, shortcut, kernel_size=3
 
     if not is_fused:
         # nn = keras.layers.ZeroPadding2D(padding=1, name=name + "pad")(nn)
-        nn = DepthwiseConv2D(kernel_size, padding="same", strides=stride, use_bias=False, depthwise_initializer=CONV_KERNEL_INITIALIZER, name=name + "MB_dw_")(
+        nn = DepthwiseConv2D(kernel_size, padding="same", strides=stride, use_bias=False,
+                             depthwise_initializer=CONV_KERNEL_INITIALIZER,
+                             kernel_regularizer=CONV_KERNEL_REGULARZIZER,
+                             name=name + "MB_dw_")(
             nn
         )
         nn = batchnorm_with_activation(nn, name=name + "MB_dw_")

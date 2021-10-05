@@ -125,13 +125,13 @@ if DISTRIBUTION_MODE:
         model = seg_model_build(image_size=IMAGE_SIZE, mode='seg', augment=True, weight_decay=WEIGHT_DECAY,
                                 optimizer=OPTIMIZER_TYPE)
 
-        # losses = {'output': loss.ce_loss,
-        #           'aux': aux_loss.ce_loss
-        #           }
+        losses = {'output': loss.ce_loss,
+                  'aux': aux_loss.ce_loss
+                  }
 
         model.compile(
             optimizer=optimizer,
-            loss=loss.ce_loss,
+            loss=losses,
             metrics=[mIoU])
 
         if LOAD_WEIGHT:

@@ -151,7 +151,7 @@ class Seg_loss:
             # ce_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=gt, logits=prediction)
 
             weights = tf.gather(self.cls_weight, gt)
-            ce_loss = tf.reduce_mean((ce_loss * weights) * self.aux_factor)
+            ce_loss = (ce_loss * weights) * self.aux_factor
             # ce_loss *= self.cls_weight
 
         else:

@@ -6,9 +6,14 @@ import numpy as np
 
 AUTO = tf.data.experimental.AUTOTUNE
 
+def imgNetNorm(img):
+    img = img / 255.0
+    img -= [0.485, 0.456, 0.406]  # imageNet mean
+    img /= [0.229, 0.224, 0.225]  # imageNet std
+    return img
 
 class CityScapes:
-    def __init__(self, data_dir, image_size, batch_size, mode):
+    def __init__(self, data_dir, image_size, batch_size, mode, model_name='ddrnet'):
         """
         Args:
             data_dir: 데이터셋 상대 경로 ( default : './datasets/' )
@@ -18,6 +23,7 @@ class CityScapes:
         self.data_dir = data_dir
         self.image_size = image_size
         self.batch_size = batch_size
+        self.model_name = model_name
         self.mean = (0.28689554, 0.32513303, 0.28389177)
         self.std = (0.18696375, 0.19017339, 0.18720214)
 
@@ -56,9 +62,14 @@ class CityScapes:
         img = tf.cast(img, dtype=tf.float32)
         labels = tf.cast(labels, dtype=tf.int64)
 
+        if self.model_name == 'ddrnet':
+            img = imgNetNorm(img)
         # img = preprocess_input(img, mode='torch')
-        img = (img - self.mean) / self.std
+        # img = (img - self.mean) / self.std
 
+        # img = img / 255.0
+        # img -= [0.485, 0.456, 0.406] # imageNet mean
+        # img /= [0.229, 0.224, 0.225] # imageNet std
 
         return (img, labels)
 
@@ -95,34 +106,43 @@ class CityScapes:
         # img = preprocess_input(img, mode='torch')
         # img = (img - self.mean) / self.std
 
-        img = img / 255.0
-        img -= [0.485, 0.456, 0.406] # imageNet mean
-        img /= [0.229, 0.224, 0.225] # imageNet std
+        # img = img / 255.0
+        # img -= [0.485, 0.456, 0.406] # imageNet mean
+        # img /= [0.229, 0.224, 0.225] # imageNet std
+
+        if self.model_name == 'ddrnet':
+            img = imgNetNorm(img)
 
         return (img, labels)
 
 
     @tf.function
     def augmentation(self, img, labels):
-        if tf.random.uniform([], minval=0, maxval=1) > 0.5:
+        if tf.random.uniform([]) > 0.5:
             img = tf.image.random_saturation(img, 0.5, 1.5)
-        if tf.random.uniform([], minval=0, maxval=1) > 0.5:
+        if tf.random.uniform([]) > 0.5:
             img = tf.image.random_brightness(img, 0.05)
-        if tf.random.uniform([], minval=0, maxval=1) > 0.5:
+        if tf.random.uniform([]) > 0.5:
             img = tf.image.random_contrast(img, 0.5, 1.5)
-
-        if tf.random.uniform([], minval=0, maxval=1) > 0.5:
+        if tf.random.uniform([]) > 0.5:
             img = tf.image.flip_left_right(img)
             labels = tf.image.flip_left_right(labels)
 
         img = tf.cast(img, dtype=tf.float32)
         labels = tf.cast(labels, dtype=tf.int64)
 
+        if tf.random.uniform([]) > 0.5:
+            img, labels = self.zoom(img, labels, 0.8, 1.2)
+
         # img = preprocess_input(img, mode='torch')
         # img = (img - self.mean) / self.std
-        img = img / 255.0
-        img -= [0.485, 0.456, 0.406] # imageNet mean
-        img /= [0.229, 0.224, 0.225] # imageNet std
+
+        # img = img / 255.0
+        # img -= [0.485, 0.456, 0.406] # imageNet mean
+        # img /= [0.229, 0.224, 0.225] # imageNet std
+
+        if self.model_name == 'ddrnet':
+            img = imgNetNorm(img)
 
         return (img, labels)
 
@@ -136,7 +156,7 @@ class CityScapes:
         labels = tf.image.resize(labels, (nh, nw), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
         x = tf.image.resize_with_crop_or_pad(x, h, w)
         labels = tf.image.resize_with_crop_or_pad(labels, h, w)
-        return (x, labels)
+        return x, labels
 
     @tf.function
     def rotate(self, x, labels, angle=(-45, 45)):

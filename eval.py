@@ -1,5 +1,5 @@
 from tensorflow.keras.mixed_precision import experimental as mixed_precision
-from classification.model.model_builder import seg_model_build
+from ddrnet_23_slim.model.model_builder import seg_model_build
 import argparse
 import time
 import os
@@ -61,7 +61,7 @@ test_steps = dataset.number_valid // BATCH_SIZE
 test_set = dataset.get_testData(dataset.valid_data)
 
 model = seg_model_build(image_size=IMAGE_SIZE, mode='seg', augment=True, weight_decay=WEIGHT_DECAY, num_classes=19)
-weight_name = '_1002_best_miou'
+weight_name = '_1004_best_miou'
 model.load_weights(CHECKPOINT_DIR + weight_name + '.h5',by_name=True)
 model.summary()
 

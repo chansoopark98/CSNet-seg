@@ -1,4 +1,4 @@
-from classification.model.imageNet_model import DDRNet
+from ddrnet_23_slim.model.imageNet_model import DDRNet
 import tensorflow as tf
 
 def seg_model_build(image_size, mode='cls', augment=False, weight_decay=0.0001, optimizer='sgd', num_classes=19):

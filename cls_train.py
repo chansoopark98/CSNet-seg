@@ -1,10 +1,10 @@
 from tensorflow.keras.callbacks import ReduceLROnPlateau, ModelCheckpoint
 from tensorflow.keras.mixed_precision import experimental as mixed_precision
 from utils.callbacks import Scalar_LR
-from classification.utils.load_datasets import GenerateDatasets
-from classification.utils.callbacks import CustomLearningRateScheduler, lr_schedule
-from classification.model.model_builder import seg_model_build
-from classification.model.loss import Loss
+from ddrnet_23_slim.utils.load_datasets import GenerateDatasets
+from ddrnet_23_slim.utils.callbacks import CustomLearningRateScheduler, lr_schedule
+from ddrnet_23_slim.model.model_builder import seg_model_build
+from ddrnet_23_slim.model.loss import Loss
 import argparse
 import time
 import os

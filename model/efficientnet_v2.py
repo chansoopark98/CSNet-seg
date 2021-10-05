@@ -1,3 +1,9 @@
+"""
+Creates a EfficientNetV2 Model as defined in:
+Mingxing Tan, Quoc V. Le. (2021).
+EfficientNetV2: Smaller Models and Faster Training
+arXiv preprint arXiv:2104.00298.
+"""
 import os
 import tensorflow as tf
 from tensorflow import keras
@@ -73,7 +79,7 @@ BLOCK_CONFIGS = {
         "expands": [1, 4, 4, 4, 6, 6],
         "out_channels": [24, 48, 64, 128, 160, 256],
         "depthes": [2, 4, 4, 6, 9, 15],
-        "strides": [1, 2, 2, 2, 1, 1],
+        "strides": [1, 2, 2, 2, 1, 2],
         "use_ses": [0, 0, 0, 1, 1, 1],
     },
     "m": {  # width 1.6, depth 2.2
@@ -115,6 +121,15 @@ FILE_HASH_DICT = {
     "s": {"21k-ft1k": "93046a0d601da46bfce9d4ca14224c83", "21k": "10b05d878b64f796ab984a5316a4a1c3", "imagenet": "3b91df2c50c7a56071cca428d53b8c0d"},
     "t": {"imagenet": "46632458117102758518158bf35444d7"},
     "xl": {"21k-ft1k": "9aaa2bd3c9495b23357bc6593eee5bce", "21k": "c97de2770f55701f788644336181e8ee"},
+    "v1-b0": {"noisy_student": "d125a518737c601f8595937219243432", "imagenet": "cc7d08887de9df8082da44ce40761986"},
+    "v1-b1": {"noisy_student": "8f44bff58fc5ef99baa3f163b3f5c5e8", "imagenet": "a967f7be55a0125c898d650502c0cfd0"},
+    "v1-b2": {"noisy_student": "b4ffed8b9262df4facc5e20557983ef8", "imagenet": "6c8d1d3699275c7d1867d08e219e00a7"},
+    "v1-b3": {"noisy_student": "9d696365378a1ebf987d0e46a9d26ddd", "imagenet": "d78edb3dc7007721eda781c04bd4af62"},
+    "v1-b4": {"noisy_student": "a0f61b977544493e6926186463d26294", "imagenet": "4c83aa5c86d58746a56675565d4f2051"},
+    "v1-b5": {"noisy_student": "c3b6eb3f1f7a1e9de6d9a93e474455b1", "imagenet": "0bda50943b8e8d0fadcbad82c17c40f5"},
+    "v1-b6": {"noisy_student": "20dd18b0df60cd7c0387c8af47bd96f8", "imagenet": "da13735af8209f675d7d7d03a54bfa27"},
+    "v1-b7": {"noisy_student": "7f6f6dd4e8105e32432607ad28cfad0f", "imagenet": "d9c22b5b030d1e4f4c3a96dbf5f21ce6"},
+    "v1-l2": {"noisy_student": "5fedc721febfca4b08b03d1f18a4a3ca"},
 }
 
 
@@ -173,7 +188,7 @@ def se_module(inputs, se_ratio=4, name=""):
     return Multiply()([inputs, se])
 
 
-def MBConv(inputs, output_channel, stride, expand_ratio, shortcut, drop_rate=0, use_se=0, is_fused=False, name=""):
+def MBConv(inputs, output_channel, stride, expand_ratio, shortcut, kernel_size=3, drop_rate=0, use_se=0, is_fused=False, name=""):
     channel_axis = 1 if K.image_data_format() == "channels_first" else -1
     input_channel = inputs.shape[channel_axis]
 
@@ -188,7 +203,9 @@ def MBConv(inputs, output_channel, stride, expand_ratio, shortcut, drop_rate=0, 
 
     if not is_fused:
         # nn = keras.layers.ZeroPadding2D(padding=1, name=name + "pad")(nn)
-        nn = DepthwiseConv2D((3, 3), padding="same", strides=stride, use_bias=False, depthwise_initializer=CONV_KERNEL_INITIALIZER, name=name + "MB_dw_")(nn)
+        nn = DepthwiseConv2D(kernel_size, padding="same", strides=stride, use_bias=False, depthwise_initializer=CONV_KERNEL_INITIALIZER, name=name + "MB_dw_")(
+            nn
+        )
         nn = batchnorm_with_activation(nn, name=name + "MB_dw_")
 
     if use_se:
@@ -218,11 +235,15 @@ def EfficientNetV2(
     first_strides=2,
     drop_connect_rate=0,
     classifier_activation="softmax",
+    include_preprocessing=False,
     pretrained="imagenet",
     model_name="EfficientNetV2",
     kwargs=None,  # Not used, just recieving parameter
 ):
-    blocks_config = BLOCK_CONFIGS.get(model_type.lower(), BLOCK_CONFIGS["s"])
+    if isinstance(model_type, dict):  # For EfficientNetV1 configures
+        model_type, blocks_config = model_type.popitem()
+    else:
+        blocks_config = BLOCK_CONFIGS.get(model_type.lower(), BLOCK_CONFIGS["s"])
     expands = blocks_config["expands"]
     out_channels = blocks_config["out_channels"]
     depthes = blocks_config["depthes"]
@@ -230,16 +251,29 @@ def EfficientNetV2(
     use_ses = blocks_config["use_ses"]
     first_conv_filter = blocks_config.get("first_conv_filter", out_channels[0])
     output_conv_filter = blocks_config.get("output_conv_filter", 1280)
+    kernel_sizes = blocks_config.get("kernel_sizes", [3] * len(depthes))
 
     inputs = Input(shape=input_shape)
+    if include_preprocessing:
+        channel_axis = 1 if K.image_data_format() == "channels_first" else -1
+        try:
+            Rescaling = keras.layers.Rescaling
+            Normalization = keras.layers.Normalization
+        except:
+            Rescaling = keras.layers.experimental.preprocessing.Rescaling
+            Normalization = keras.layers.experimental.preprocessing.Normalization
+        nn = Rescaling(1.0 / 255.0)(inputs)
+        nn = Normalization(mean=[0.485, 0.456, 0.406], variance=[0.229, 0.224, 0.225], axis=channel_axis)(nn)
+    else:
+        nn = inputs
     out_channel = _make_divisible(first_conv_filter, 8)
-    nn = conv2d_no_bias(inputs, out_channel, (3, 3), strides=first_strides, padding="same", name="stem_")
+    nn = conv2d_no_bias(nn, out_channel, (3, 3), strides=first_strides, padding="same", name="stem_")
     nn = batchnorm_with_activation(nn, name="stem_")
 
     pre_out = out_channel
     global_block_id = 0
     total_blocks = sum(depthes)
-    for id, (expand, out_channel, depth, stride, se) in enumerate(zip(expands, out_channels, depthes, strides, use_ses)):
+    for id, (expand, out_channel, depth, stride, se, kernel_size) in enumerate(zip(expands, out_channels, depthes, strides, use_ses, kernel_sizes)):
         out = _make_divisible(out_channel, 8)
         is_fused = True if se == 0 else False
         for block_id in range(depth):
@@ -247,7 +281,7 @@ def EfficientNetV2(
             shortcut = True if out == pre_out and stride == 1 else False
             name = "stack_{}_block{}_".format(id, block_id)
             block_drop_rate = drop_connect_rate * global_block_id / total_blocks
-            nn = MBConv(nn, out, stride, expand, shortcut, block_drop_rate, se, is_fused, name=name)
+            nn = MBConv(nn, out, stride, expand, shortcut, kernel_size, block_drop_rate, se, is_fused, name=name)
             pre_out = out
             global_block_id += 1
 
@@ -267,16 +301,19 @@ def EfficientNetV2(
 
 
 def reload_model_weights(model, model_type, pretrained="imagenet"):
-    pretrained_dd = {"imagenet": "imagenet", "imagenet21k": "21k", "imagenet21k-ft1k": "21k-ft1k"}
+    pretrained_dd = {"imagenet": "imagenet", "imagenet21k": "21k", "imagenet21k-ft1k": "21k-ft1k", "noisy_student": "noisy_student"}
     if not pretrained in pretrained_dd:
-        print(">>>> No pretraind available, model will be randomly initialized")
+        print(">>>> No pretrained available, model will be randomly initialized")
         return
     pre_tt = pretrained_dd[pretrained]
     if model_type not in FILE_HASH_DICT or pre_tt not in FILE_HASH_DICT[model_type]:
-        print(">>>> No pretraind available, model will be randomly initialized")
+        print(">>>> No pretrained available, model will be randomly initialized")
         return
 
-    pre_url = "https://github.com/leondgarse/keras_efficientnet_v2/releases/download/effnetv2_pretrained/efficientnetv2-{}-{}.h5"
+    if model_type.startswith("v1"):
+        pre_url = "https://github.com/leondgarse/keras_efficientnet_v2/releases/download/effnetv1_pretrained/efficientnet{}-{}.h5"
+    else:
+        pre_url = "https://github.com/leondgarse/keras_efficientnet_v2/releases/download/effnetv2_pretrained/efficientnetv2-{}-{}.h5"
     url = pre_url.format(model_type, pre_tt)
     file_name = os.path.basename(url)
     file_hash = FILE_HASH_DICT[model_type][pre_tt]
@@ -287,7 +324,7 @@ def reload_model_weights(model, model_type, pretrained="imagenet"):
         print("[Error] will not load weights, url not found or download failed:", url)
         return
     else:
-        print(">>>> Load pretraind from:", pretrained_model)
+        print(">>>> Load pretrained from:", pretrained_model)
         model.load_weights(pretrained_model, by_name=True, skip_mismatch=True)
 
 
@@ -323,7 +360,7 @@ def EfficientNetV2L(input_shape=(480, 480, 3), num_classes=1000, dropout=0.4, cl
     return EfficientNetV2(model_type="l", model_name="EfficientNetV2L", **locals(), **kwargs)
 
 
-def EfficientNetV2XL(input_shape=(512, 512, 3), num_classes=1000, dropout=0.4, classifier_activation="softmax", pretrained="imagenet", **kwargs):
+def EfficientNetV2XL(input_shape=(512, 512, 3), num_classes=1000, dropout=0.4, classifier_activation="softmax", pretrained="imagenet21k-ft1k", **kwargs):
     return EfficientNetV2(model_type="xl", model_name="EfficientNetV2XL", **locals(), **kwargs)
 
 

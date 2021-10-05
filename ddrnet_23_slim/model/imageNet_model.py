@@ -342,8 +342,8 @@ class DDRNet:
                        head_planes=64, scale_factor=8,augment=False):
 
         base = self.classification_model(input_shape=input_shape)
-        # base.load_weights('./classification/model/_0924_backbone_best_loss.h5')
-        base.load_weights('./classification/model/ddrnet_23_slim_imagenet.h5', by_name=True)
+        # base.load_weights('./ddrnet_23_slim/model/_0924_backbone_best_loss.h5')
+        base.load_weights('./ddrnet_23_slim/model/ddrnet_23_slim_imagenet.h5', by_name=True)
 
         highres_planes = planes * 2
         input_shape = tf.keras.backend.int_shape(base.input)

@@ -42,4 +42,5 @@ class MIoU(tf.keras.metrics.MeanIoU):
         y_true *= indices
         zeros_y_pred *= indices
 
+
         return super().update_state(y_true, y_pred, sample_weight)

@@ -153,7 +153,7 @@ def _make_divisible(v, divisor=4, min_value=None):
 def conv2d_no_bias(inputs, filters, kernel_size, strides=1, padding="VALID", name=""):
     return Conv2D(filters, kernel_size, strides=strides, padding=padding, use_bias=False,
                   kernel_initializer=CONV_KERNEL_INITIALIZER,
-                  kernel_regularizer=CONV_KERNEL_REGULARZIZER,
+                  # kernel_regularizer=CONV_KERNEL_REGULARZIZER,
                   name=name + "conv")(
         inputs
     )
@@ -186,12 +186,12 @@ def se_module(inputs, se_ratio=4, name=""):
     # se = Reshape((1, 1, filters))(se)
     se = tf.reduce_mean(inputs, [h_axis, w_axis], keepdims=True)
     se = Conv2D(reduction, kernel_size=1, use_bias=True, kernel_initializer=CONV_KERNEL_INITIALIZER,
-                kernel_regularizer=CONV_KERNEL_REGULARZIZER,
+                # kernel_regularizer=CONV_KERNEL_REGULARZIZER,
                 name=name + "1_conv")(se)
     # se = PReLU(shared_axes=[1, 2])(se)
     se = Activation("swish")(se)
     se = Conv2D(filters, kernel_size=1, use_bias=True, kernel_initializer=CONV_KERNEL_INITIALIZER,
-                kernel_regularizer=CONV_KERNEL_REGULARZIZER,
+                # kernel_regularizer=CONV_KERNEL_REGULARZIZER,
                 name=name + "2_conv")(se)
     se = Activation("sigmoid")(se)
     return Multiply()([inputs, se])
@@ -214,7 +214,7 @@ def MBConv(inputs, output_channel, stride, expand_ratio, shortcut, kernel_size=3
         # nn = keras.layers.ZeroPadding2D(padding=1, name=name + "pad")(nn)
         nn = DepthwiseConv2D(kernel_size, padding="same", strides=stride, use_bias=False,
                              depthwise_initializer=CONV_KERNEL_INITIALIZER,
-                             kernel_regularizer=CONV_KERNEL_REGULARZIZER,
+                             # kernel_regularizer=CONV_KERNEL_REGULARZIZER,
                              name=name + "MB_dw_")(
             nn
         )

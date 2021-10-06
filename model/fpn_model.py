@@ -32,8 +32,8 @@ import tensorflow as tf
 
 MOMENTUM = 0.99
 EPSILON = 1e-3
-# DECAY = tf.keras.regularizers.L2(l2=0.00001//2)
-DECAY = None
+DECAY = tf.keras.regularizers.L2(l2=0.0005/2)
+# DECAY = None
 CONV_KERNEL_INITIALIZER = tf.keras.initializers.VarianceScaling(scale=1.0, mode="fan_out", distribution="truncated_normal")
 atrous_rates= (6, 12, 18)
 
@@ -48,6 +48,7 @@ def fpn_model(features, fpn_times=2, activation='swish', fpn_channels=64, mode='
         # from (b_size, channels)->(b_size, 1, 1, channels)
         b4 = Reshape((1, 1, b4_shape[1]))(b4)
         b4 = Conv2D(256, (1, 1), padding='same',
+                    kernel_regularizer=DECAY,
                     use_bias=False, name='image_pooling')(b4)
         b4 = BatchNormalization(name='image_pooling_BN', epsilon=1e-5)(b4)
         b4 = Activation(activation)(b4)
@@ -59,7 +60,9 @@ def fpn_model(features, fpn_times=2, activation='swish', fpn_channels=64, mode='
 
         # b4 = UpSampling2D(size=(32, 64), interpolation="bilinear")(b4)
         # simple 1x1
-        b0 = Conv2D(256, (1, 1), padding='same', use_bias=False, name='aspp0')(x)
+        b0 = Conv2D(256, (1, 1), padding='same',
+                    kernel_regularizer=DECAY,
+                    use_bias=False, name='aspp0')(x)
         b0 = BatchNormalization(name='aspp0_BN', epsilon=1e-5)(b0)
         b0 = Activation(activation, name='aspp0_activation')(b0)
 
@@ -76,6 +79,7 @@ def fpn_model(features, fpn_times=2, activation='swish', fpn_channels=64, mode='
         x = Concatenate()([b4, b0, b1, b2, b3])
 
         x = Conv2D(256, (1, 1), padding='same',
+                   kernel_regularizer=DECAY,
                    use_bias=False, name='concat_projection')(x)
         x = BatchNormalization(name='concat_projection_BN', epsilon=1e-5)(x)
         x = Activation(activation)(x)
@@ -89,6 +93,7 @@ def fpn_model(features, fpn_times=2, activation='swish', fpn_channels=64, mode='
         # x = UpSampling2D((4,4), interpolation='bilinear')(x)
 
         dec_skip1 = Conv2D(48, (1, 1), padding='same',
+                           kernel_regularizer=DECAY,
                            use_bias=False, name='feature_projection0')(skip1)
         dec_skip1 = BatchNormalization(
             name='feature_projection0_BN', epsilon=1e-5)(dec_skip1)
@@ -296,11 +301,13 @@ def SepConv_BN(x, filters, prefix, stride=1, kernel_size=3, rate=1, depth_activa
     if not depth_activation:
         x = Activation(activation)(x)
     x = DepthwiseConv2D((kernel_size, kernel_size), strides=(stride, stride), dilation_rate=(rate, rate),
+                        kernel_regularizer=DECAY,
                         padding=depth_padding, use_bias=False, name=prefix + '_depthwise')(x)
     x = BatchNormalization(name=prefix + '_depthwise_BN', epsilon=epsilon)(x)
     if depth_activation:
         x = Activation(activation)(x)
     x = Conv2D(filters, (1, 1), padding='same',
+               kernel_regularizer=DECAY,
                use_bias=False, name=prefix + '_pointwise')(x)
     x = BatchNormalization(name=prefix + '_pointwise_BN', epsilon=epsilon)(x)
     if depth_activation:

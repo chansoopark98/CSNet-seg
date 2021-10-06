@@ -8,6 +8,7 @@ import tensorflow as tf
 from tqdm import tqdm
 from utils.load_datasets import CityScapes
 from utils.cityscape_colormap import color_map
+from utils.get_flops import get_flops
 
 tf.keras.backend.clear_session()
 
@@ -62,9 +63,10 @@ test_steps = dataset.number_valid // BATCH_SIZE
 test_set = dataset.get_testData(dataset.valid_data)
 
 model = seg_model_build(image_size=IMAGE_SIZE, mode='seg', augment=True, weight_decay=WEIGHT_DECAY, num_classes=19)
-weight_name = '_1005_best_miou'
+weight_name = '_1006_best_miou'
 model.load_weights(CHECKPOINT_DIR + weight_name + '.h5',by_name=True)
 model.summary()
+print(get_flops(model, batch_size=1))
 
 class MeanIOU(tf.keras.metrics.MeanIoU):
     def update_state(self, y_true, y_pred, sample_weight=None):
@@ -97,15 +99,15 @@ save_path = './checkpoints/results/'+SAVE_MODEL_NAME+'/'
 os.makedirs(save_path, exist_ok=True)
 for x, y in tqdm(test_set, total=test_steps):
     pred = model.predict_on_batch(x)#pred = tf.nn.softmax(pred)
-    # pred = pred[0]
+    pred = pred[0]
 
     arg_pred = tf.math.argmax(pred, axis=-1)
 
     for i in range(len(arg_pred)):
         metric.update_state(y[i], arg_pred[i])
-        batch_miou = metric.result().numpy()
-        print(batch_miou)
-        buffer += batch_miou
+        buffer = metric.result().numpy()
+        print(buffer)
+        # buffer += batch_miou
 
         r = arg_pred[i]
         g = arg_pred[i]
@@ -130,7 +132,7 @@ for x, y in tqdm(test_set, total=test_steps):
 
 
 
-print("CityScapes validation 1024x2048 mIoU :  ", buffer/dataset.number_valid)
+print("CityScapes validation 1024x2048 mIoU :  ", buffer)
 
 
 

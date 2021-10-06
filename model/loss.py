@@ -141,7 +141,6 @@ class Seg_loss:
         gt = tf.cast(tf.gather(y_true, indices), tf.int32)
         prediction = tf.gather(raw_prediction, indices)
 
-
         if self.distribute_mode:
             ce_loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True,
                                                                 reduction=tf.keras.losses.Reduction.NONE)(y_true=gt,

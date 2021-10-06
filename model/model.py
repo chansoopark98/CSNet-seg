@@ -3,7 +3,7 @@ from model.efficientnet_v2 import *
 # from model.efficientnet_v2 import EfficientNetV2S
 from model.resnet101 import *
 from tensorflow.keras import layers
-from model.fpn_model import fpn_model, SepConv_BN
+from model.fpn_model import fpn_model, SepConv_BN, DECAY
 
 from tensorflow.keras.layers import (
     MaxPooling2D, SeparableConv2D, UpSampling2D, Activation, BatchNormalization,
@@ -373,7 +373,9 @@ def classifier(x, num_classes=19, use_aux=False, name=None):
                    depth_activation=True, epsilon=1e-5)
 
 
-    x = layers.Conv2D(num_classes, 1, strides=1, kernel_initializer=CONV_KERNEL_INITIALIZER)(x)
+    x = layers.Conv2D(num_classes, 1, strides=1,
+                      kernel_regularizer=DECAY,
+                      kernel_initializer=CONV_KERNEL_INITIALIZER)(x)
     x = layers.UpSampling2D(size=(upper_factor, upper_factor), interpolation='bilinear', name=name)(x)
     return x
 

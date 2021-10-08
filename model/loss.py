@@ -103,18 +103,15 @@ class SparseCategoricalFocalLoss(tf.keras.losses.Loss):
 import tensorflow.keras.backend as K
 
 class Seg_loss:
-    def __init__(self, batch_size, use_aux=False, distribute_mode=True, use_focal=False):
+    def     __init__(self, batch_size, use_aux=False, distribute_mode=True, use_focal=False, aux_factor=1):
         self.batch_size = batch_size
         self.alpha = 0.25
         self.gamma = 2.0
         self.num_classes = 19
         self.distribute_mode = distribute_mode
         self.use_focal = use_focal
+        self.aux_factor = aux_factor
 
-        if use_aux:
-            self.aux_factor = 0.4
-        else:
-            self.aux_factor = 1
 
         # self.class_weight = {0: 0.8373, 1: 0.918, 2: 0.866, 3: 1.0345,
         #                 4: 1.0166, 5: 0.9969, 6: 0.9754, 7: 1.0489,

@@ -2,7 +2,7 @@
 from model.efficientnet_v2 import *
 from model.resnet101 import *
 from tensorflow.keras import layers
-from model.fpn_model import fpn_model
+from model.fpn_model import deepLabV3Plus
 
 
 BATCH_NORM_DECAY = 0.99
@@ -67,7 +67,7 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
         features = [c3, c4, c5]
 
         model_input = base.input
-        model_output = fpn_model(features=features, fpn_times=3, activation='swish')
+        model_output = deepLabV3Plus(features=features, fpn_times=3, activation='swish')
         model_output = classifier(model_output, num_classes=classes)
 
 
@@ -80,7 +80,7 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
 
         features = [c3, c4, c5]
         model_input = base.input
-        model_output = fpn_model(features=features, fpn_times=3, activation='swish')
+        model_output = deepLabV3Plus(features=features, fpn_times=3, activation='swish')
         model_output = classifier(model_output, num_classes=classes)
 
     else:

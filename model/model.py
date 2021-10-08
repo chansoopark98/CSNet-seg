@@ -3,7 +3,7 @@ from model.efficientnet_v2 import *
 # from model.efficientnet_v2 import EfficientNetV2S
 from model.resnet101 import *
 from tensorflow.keras import layers
-from model.fpn_model import fpn_model, SepConv_BN, DECAY
+from model.fpn_model import deepLabV3Plus, SepConv_BN, DECAY, proposed
 
 from tensorflow.keras.layers import (
     MaxPooling2D, SeparableConv2D, UpSampling2D, Activation, BatchNormalization,
@@ -69,187 +69,189 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
     # bn_axis = 1 if K.image_data_format() == "channels_first" else -1
     # aspp_size = (input_shape[0] // OS, input_shape[1] // OS)
 
-    if backbone == 'ResNet101':
-        input_tensor = tf.keras.Input(shape=input_shape)
-        encoder = ResNet('ResNet101', [1, 2])
-        c2, c5 = encoder(input_tensor, ['c2', 'c5'])
-
-
-    elif backbone == 'efficientV1-b0':
-        base = efn.EfficientNetB0(weights="imagenet", include_top=False, input_shape=input_shape)
-        base.summary()
-        c3 = base.get_layer('block2b_add').output
-        c4 = base.get_layer('block3b_add').output
-        c5 = base.get_layer('block7a_project_bn').output
-
-        features = [c3, c4, c5]
-
-        model_input = base.input
-        model_output = fpn_model(features=features, fpn_times=3, activation='swish')
-        model_output = classifier(model_output, num_classes=classes)
-
-    elif backbone == 'efficientV2-s':
+    # if backbone == 'ResNet101':
+    #     input_tensor = tf.keras.Input(shape=input_shape)
+    #     encoder = ResNet('ResNet101', [1, 2])
+    #     c2, c5 = encoder(input_tensor, ['c2', 'c5'])
+    #
+    #
+    # elif backbone == 'efficientV1-b0':
+    #     base = efn.EfficientNetB0(weights="imagenet", include_top=False, input_shape=input_shape)
+    #     base.summary()
+    #     c3 = base.get_layer('block2b_add').output
+    #     c4 = base.get_layer('block3b_add').output
+    #     c5 = base.get_layer('block7a_project_bn').output
+    #
+    #     features = [c3, c4, c5]
+    #
+    #     model_input = base.input
+    #     model_output = fpn_model(features=features, fpn_times=3, activation='swish')
+    #     model_output = classifier(model_output, num_classes=classes)
+    #
+    # elif backbone == 'efficientV2-s':
         # base = EfficientNetV2S(input_shape=input_shape, classifier_activation=None, survivals=None)
         # base = EfficientNetV2S(pretrained="imagenet21k-ft1k", input_shape=input_shape, num_classes=0, dropout=0.2)
         # base = EfficientNetV2S(pretrained="imagenet", input_shape=input_shape, num_classes=0, dropout=1e-6)
-        base = EfficientNetV2S(input_shape=input_shape, pretrained="imagenet")
+    base = EfficientNetV2S(input_shape=input_shape, pretrained="imagenet")
 
-        base.summary()
-        base.load_weights('./checkpoints/efficientnetv2-s-imagenet.h5', by_name=True)
-        c5 = base.get_layer('add_34').output  # 16x32 256 or get_layer('post_swish') => 확장된 채널 1280
-        # c5 = base.get_layer('post_swish').output  # 32x64 256 or get_layer('post_swish') => 확장된 채널 1280
-        # c4 = base.get_layer('add_20').output  # 32x64 64
-        c3 = base.get_layer('add_7').output  # 64x128 48
-        c2 = base.get_layer('add_4').output  # 128x256 48
+    base.summary()
+    base.load_weights('./checkpoints/efficientnetv2-s-imagenet.h5', by_name=True)
+    c5 = base.get_layer('add_34').output  # 16x32 256 or get_layer('post_swish') => 확장된 채널 1280
+    # c5 = base.get_layer('post_swish').output  # 32x64 256 or get_layer('post_swish') => 확장된 채널 1280
+    # c4 = base.get_layer('add_20').output  # 32x64 64
+    c3 = base.get_layer('add_7').output  # 64x128 48
+    c2 = base.get_layer('add_4').output  # 128x256 48
 
-        features = [c2, c3, c5]
+    features = [c2, c3, c5]
 
-        model_input = base.input
-        model_output = fpn_model(features=features, fpn_times=2, activation='swish', mode='deeplabv3+')
-        decoder_output = classifier(model_output, num_classes=classes, name='output')
-        aux_output = classifier(c3, num_classes=classes, use_aux=True, name='aux')
+    model_input = base.input
+    # model_output, aspp_aux = deepLabV3Plus(features=features, fpn_times=2, activation='swish', mode='deeplabv3+')
+    model_output, aspp_aux = proposed(features=features, fpn_times=2, activation='swish', mode='deeplabv3+')
+    decoder_output = classifier(model_output, num_classes=classes, upper=4, name='output')
+    aux_output = classifier(c3, num_classes=classes, use_aux=True, upper=8, name='aux')
+    aspp_aux_output = classifier(aspp_aux, num_classes=classes, use_aux=True, upper=4, name='aspp_aux')
 
-        model_output = [decoder_output, aux_output]
-
-
-    elif backbone == 'efficientV2-m':
-        base = EfficientNetV2('m', input_shape=input_shape, classifier_activation=None, first_strides=1)
-        # base = EfficientNetV2M(input_shape=input_shape, classifier_activation=None, survivals=None)
-        base.load_weights('checkpoints/efficientnetv2-m-21k-ft1k.h5', by_name=True)
-        c5 = base.get_layer('add_50').output # 32x64
-        c4 = base.get_layer('add_29').output # 128x256
-        c3 = base.get_layer('add_10').output # 128x256
-        # base.summary()
-
-        features = [c3, c4, c5]
-        model_input = base.input
-        model_output = fpn_model(features=features, fpn_times=3, activation='swish')
-        model_output = classifier(model_output, num_classes=classes)
+    model_output = [decoder_output, aux_output, aspp_aux_output]
 
 
-    elif backbone =='xception':
-
-        base = EfficientNetV2S(input_shape=input_shape, pretrained="imagenet")
-        img_input = base.input
-
-        x = base.get_layer('add_34').output  # 16x32 256 or get_layer('post_swish') => 확장된 채널 1280
-        skip1 = base.get_layer('add_4').output  # 128x256 48
-        #
-        #
-        # img_input = Input(shape=input_shape)
-        # entry_block3_stride = 2
-        # middle_block_rate = 1
-        # exit_block_rates = (1, 2)
-        atrous_rates = (6, 12, 18)
-        #
-        # x = Conv2D(32, (3, 3), strides=(2, 2),
-        #            name='entry_flow_conv1_1', use_bias=False, padding='same')(img_input)
-        # x = BatchNormalization(name='entry_flow_conv1_1_BN')(x)
-        # x = Activation(tf.nn.relu)(x)
-        #
-        # x = _conv2d_same(x, 64, 'entry_flow_conv1_2', kernel_size=3, stride=1)
-        # x = BatchNormalization(name='entry_flow_conv1_2_BN')(x)
-        # x = Activation(tf.nn.relu)(x)
-        #
-        # x = _xception_block(x, [128, 128, 128], 'entry_flow_block1',
-        #                     skip_connection_type='conv', stride=2,
-        #                     depth_activation=False)
-        # x, skip1 = _xception_block(x, [256, 256, 256], 'entry_flow_block2',
-        #                            skip_connection_type='conv', stride=2,
-        #                            depth_activation=False, return_skip=True)
-        #
-        # x = _xception_block(x, [728, 728, 728], 'entry_flow_block3',
-        #                     skip_connection_type='conv', stride=entry_block3_stride,
-        #                     depth_activation=False)
-        # for i in range(16):
-        #     x = _xception_block(x, [728, 728, 728], 'middle_flow_unit_{}'.format(i + 1),
-        #                         skip_connection_type='sum', stride=1, rate=middle_block_rate,
-        #                         depth_activation=False)
-        #
-        # x = _xception_block(x, [728, 1024, 1024], 'exit_flow_block1',
-        #                     skip_connection_type='conv', stride=1, rate=exit_block_rates[0],
-        #                     depth_activation=False)
-        # x = _xception_block(x, [1536, 1536, 2048], 'exit_flow_block2',
-        #                     skip_connection_type='none', stride=1, rate=exit_block_rates[1],
-        #                     depth_activation=True)
-
-        # Image Feature branch
-        shape_before = tf.shape(x)
-        b4 = GlobalAveragePooling2D()(x)
-        b4_shape = tf.keras.backend.int_shape(b4)
-        # from (b_size, channels)->(b_size, 1, 1, channels)
-        b4 = Reshape((1, 1, b4_shape[1]))(b4)
-        b4 = Conv2D(256, (1, 1), padding='same',
-                    use_bias=False, name='image_pooling')(b4)
-        b4 = BatchNormalization(name='image_pooling_BN', epsilon=1e-5)(b4)
-        b4 = Activation(tf.nn.relu)(b4)
-        # upsample. have to use compat because of the option align_corners
-        size_before = tf.keras.backend.int_shape(x)
-        b4 = tf.keras.layers.experimental.preprocessing.Resizing(
-            *size_before[1:3], interpolation="bilinear"
-        )(b4)
-        # simple 1x1
-        b0 = Conv2D(256, (1, 1), padding='same', use_bias=False, name='aspp0')(x)
-        b0 = BatchNormalization(name='aspp0_BN', epsilon=1e-5)(b0)
-        b0 = Activation(tf.nn.relu, name='aspp0_activation')(b0)
-
-        b1 = SepConv_BN(x, 256, 'aspp1',
-                        rate=atrous_rates[0], depth_activation=True, epsilon=1e-5)
-        # rate = 12 (24)
-        b2 = SepConv_BN(x, 256, 'aspp2',
-                        rate=atrous_rates[1], depth_activation=True, epsilon=1e-5)
-        # rate = 18 (36)
-        b3 = SepConv_BN(x, 256, 'aspp3',
-                        rate=atrous_rates[2], depth_activation=True, epsilon=1e-5)
-
-        # concatenate ASPP branches & project
-        x = Concatenate()([b4, b0, b1, b2, b3])
-
-        x = Conv2D(256, (1, 1), padding='same',
-                   use_bias=False, name='concat_projection')(x)
-        x = BatchNormalization(name='concat_projection_BN', epsilon=1e-5)(x)
-        x = Activation(tf.nn.relu)(x)
-        x = Dropout(0.1)(x)
-
-        skip_size = tf.keras.backend.int_shape(skip1)
-        x = tf.keras.layers.experimental.preprocessing.Resizing(
-            *skip_size[1:3], interpolation="bilinear"
-        )(x)
-        dec_skip1 = Conv2D(48, (1, 1), padding='same',
-                           use_bias=False, name='feature_projection0')(skip1)
-        dec_skip1 = BatchNormalization(
-            name='feature_projection0_BN', epsilon=1e-5)(dec_skip1)
-        dec_skip1 = Activation(tf.nn.relu)(dec_skip1)
-        x = Concatenate()([x, dec_skip1])
-        x = SepConv_BN(x, 256, 'decoder_conv0',
-                       depth_activation=True, epsilon=1e-5)
-        x = SepConv_BN(x, 256, 'decoder_conv1',
-                       depth_activation=True, epsilon=1e-5)
-
-        model_output = classifier(x, num_classes=classes)
-        model_input = img_input
-
-    else:
-        raise print("Check your backbone name!")
-
-
-
-
+    # elif backbone == 'efficientV2-m':
+    #     base = EfficientNetV2('m', input_shape=input_shape, classifier_activation=None, first_strides=1)
+    #     # base = EfficientNetV2M(input_shape=input_shape, classifier_activation=None, survivals=None)
+    #     base.load_weights('checkpoints/efficientnetv2-m-21k-ft1k.h5', by_name=True)
+    #     c5 = base.get_layer('add_50').output # 32x64
+    #     c4 = base.get_layer('add_29').output # 128x256
+    #     c3 = base.get_layer('add_10').output # 128x256
+    #     # base.summary()
     #
-    # "deeplab v3+ aspp"
-    # # x = _aspp(c5, 256)
-    # x = layers.Dropout(rate=0.5)(x)
-    # x = layers.UpSampling2D(size=(4, 4), interpolation='bilinear')(x)
-    # x = _conv_bn_relu(x, 48, 1, strides=1)
+    #     features = [c3, c4, c5]
+    #     model_input = base.input
+    #     model_output = fpn_model(features=features, fpn_times=3, activation='swish')
+    #     model_output = classifier(model_output, num_classes=classes)
+
+
+    # elif backbone =='xception':
     #
-    # x = Concatenate(out_size=aspp_size)([x, c2])
-    # x = _conv_bn_relu(x, 256, 3, 1)
-    # x = layers.Dropout(rate=0.5)(x)#
-    # x = _conv_bn_relu(x, 256, 3, 1)
-    # x = layers.Dropout(rate=0.1)(x)
+    #     base = EfficientNetV2S(input_shape=input_shape, pretrained="imagenet")
+    #     img_input = base.input
     #
-    # x = layers.Conv2D(20, 1, strides=1)(x)
-    # x = layers.UpSampling2D(size=(4, 4), interpolation='bilinear')(x)
+    #     x = base.get_layer('add_34').output  # 16x32 256 or get_layer('post_swish') => 확장된 채널 1280
+    #     skip1 = base.get_layer('add_4').output  # 128x256 48
+    #     #
+    #     #
+    #     # img_input = Input(shape=input_shape)
+    #     # entry_block3_stride = 2
+    #     # middle_block_rate = 1
+    #     # exit_block_rates = (1, 2)
+    #     atrous_rates = (6, 12, 18)
+    #     #
+    #     # x = Conv2D(32, (3, 3), strides=(2, 2),
+    #     #            name='entry_flow_conv1_1', use_bias=False, padding='same')(img_input)
+    #     # x = BatchNormalization(name='entry_flow_conv1_1_BN')(x)
+    #     # x = Activation(tf.nn.relu)(x)
+    #     #
+    #     # x = _conv2d_same(x, 64, 'entry_flow_conv1_2', kernel_size=3, stride=1)
+    #     # x = BatchNormalization(name='entry_flow_conv1_2_BN')(x)
+    #     # x = Activation(tf.nn.relu)(x)
+    #     #
+    #     # x = _xception_block(x, [128, 128, 128], 'entry_flow_block1',
+    #     #                     skip_connection_type='conv', stride=2,
+    #     #                     depth_activation=False)
+    #     # x, skip1 = _xception_block(x, [256, 256, 256], 'entry_flow_block2',
+    #     #                            skip_connection_type='conv', stride=2,
+    #     #                            depth_activation=False, return_skip=True)
+    #     #
+    #     # x = _xception_block(x, [728, 728, 728], 'entry_flow_block3',
+    #     #                     skip_connection_type='conv', stride=entry_block3_stride,
+    #     #                     depth_activation=False)
+    #     # for i in range(16):
+    #     #     x = _xception_block(x, [728, 728, 728], 'middle_flow_unit_{}'.format(i + 1),
+    #     #                         skip_connection_type='sum', stride=1, rate=middle_block_rate,
+    #     #                         depth_activation=False)
+    #     #
+    #     # x = _xception_block(x, [728, 1024, 1024], 'exit_flow_block1',
+    #     #                     skip_connection_type='conv', stride=1, rate=exit_block_rates[0],
+    #     #                     depth_activation=False)
+    #     # x = _xception_block(x, [1536, 1536, 2048], 'exit_flow_block2',
+    #     #                     skip_connection_type='none', stride=1, rate=exit_block_rates[1],
+    #     #                     depth_activation=True)
+    #
+    #     # Image Feature branch
+    #     shape_before = tf.shape(x)
+    #     b4 = GlobalAveragePooling2D()(x)
+    #     b4_shape = tf.keras.backend.int_shape(b4)
+    #     # from (b_size, channels)->(b_size, 1, 1, channels)
+    #     b4 = Reshape((1, 1, b4_shape[1]))(b4)
+    #     b4 = Conv2D(256, (1, 1), padding='same',
+    #                 use_bias=False, name='image_pooling')(b4)
+    #     b4 = BatchNormalization(name='image_pooling_BN', epsilon=1e-5)(b4)
+    #     b4 = Activation(tf.nn.relu)(b4)
+    #     # upsample. have to use compat because of the option align_corners
+    #     size_before = tf.keras.backend.int_shape(x)
+    #     b4 = tf.keras.layers.experimental.preprocessing.Resizing(
+    #         *size_before[1:3], interpolation="bilinear"
+    #     )(b4)
+    #     # simple 1x1
+    #     b0 = Conv2D(256, (1, 1), padding='same', use_bias=False, name='aspp0')(x)
+    #     b0 = BatchNormalization(name='aspp0_BN', epsilon=1e-5)(b0)
+    #     b0 = Activation(tf.nn.relu, name='aspp0_activation')(b0)
+    #
+    #     b1 = SepConv_BN(x, 256, 'aspp1',
+    #                     rate=atrous_rates[0], depth_activation=True, epsilon=1e-5)
+    #     # rate = 12 (24)
+    #     b2 = SepConv_BN(x, 256, 'aspp2',
+    #                     rate=atrous_rates[1], depth_activation=True, epsilon=1e-5)
+    #     # rate = 18 (36)
+    #     b3 = SepConv_BN(x, 256, 'aspp3',
+    #                     rate=atrous_rates[2], depth_activation=True, epsilon=1e-5)
+    #
+    #     # concatenate ASPP branches & project
+    #     x = Concatenate()([b4, b0, b1, b2, b3])
+    #
+    #     x = Conv2D(256, (1, 1), padding='same',
+    #                use_bias=False, name='concat_projection')(x)
+    #     x = BatchNormalization(name='concat_projection_BN', epsilon=1e-5)(x)
+    #     x = Activation(tf.nn.relu)(x)
+    #     x = Dropout(0.1)(x)
+    #
+    #     skip_size = tf.keras.backend.int_shape(skip1)
+    #     x = tf.keras.layers.experimental.preprocessing.Resizing(
+    #         *skip_size[1:3], interpolation="bilinear"
+    #     )(x)
+    #     dec_skip1 = Conv2D(48, (1, 1), padding='same',
+    #                        use_bias=False, name='feature_projection0')(skip1)
+    #     dec_skip1 = BatchNormalization(
+    #         name='feature_projection0_BN', epsilon=1e-5)(dec_skip1)
+    #     dec_skip1 = Activation(tf.nn.relu)(dec_skip1)
+    #     x = Concatenate()([x, dec_skip1])
+    #     x = SepConv_BN(x, 256, 'decoder_conv0',
+    #                    depth_activation=True, epsilon=1e-5)
+    #     x = SepConv_BN(x, 256, 'decoder_conv1',
+    #                    depth_activation=True, epsilon=1e-5)
+    #
+    #     model_output = classifier(x, num_classes=classes)
+    #     model_input = img_input
+    #
+    # else:
+    #     raise print("Check your backbone name!")
+    #
+    #
+    #
+    #
+    # #
+    # # "deeplab v3+ aspp"
+    # # # x = _aspp(c5, 256)
+    # # x = layers.Dropout(rate=0.5)(x)
+    # # x = layers.UpSampling2D(size=(4, 4), interpolation='bilinear')(x)
+    # # x = _conv_bn_relu(x, 48, 1, strides=1)
+    # #
+    # # x = Concatenate(out_size=aspp_size)([x, c2])
+    # # x = _conv_bn_relu(x, 256, 3, 1)
+    # # x = layers.Dropout(rate=0.5)(x)#
+    # # x = _conv_bn_relu(x, 256, 3, 1)
+    # # x = layers.Dropout(rate=0.1)(x)
+    # #
+    # # x = layers.Conv2D(20, 1, strides=1)(x)
+    # # x = layers.UpSampling2D(size=(4, 4), interpolation='bilinear')(x)
 
     return model_input, model_output
 
@@ -365,11 +367,11 @@ def _xception_block(inputs, depth_list, prefix, skip_connection_type, stride,
     else:
         return outputs
 
-def classifier(x, num_classes=19, use_aux=False, name=None):
-    upper_factor = 4
+def classifier(x, num_classes=19, use_aux=False, upper=4, name=None):
+    upper_factor = upper
     if use_aux:
-        upper_factor = 8
-        x = SepConv_BN(x, 256, 'decoder_out1',
+
+        x = SepConv_BN(x, 256, name,
                    depth_activation=True, epsilon=1e-5)
 
 

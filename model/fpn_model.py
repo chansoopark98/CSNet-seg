@@ -37,132 +37,165 @@ DECAY = tf.keras.regularizers.L2(l2=0.0005/2)
 CONV_KERNEL_INITIALIZER = tf.keras.initializers.VarianceScaling(scale=1.0, mode="fan_out", distribution="truncated_normal")
 atrous_rates= (6, 12, 18)
 
-def fpn_model(features, fpn_times=2, activation='swish', fpn_channels=64, mode='fpn'):
+def deepLabV3Plus(features, fpn_times=2, activation='swish', fpn_channels=64, mode='fpn'):
     skip1, c3, x = features # c1 48 / c2 64
 
-    if mode == 'deeplabv3+':
-        # Image Feature branch
-        shape_before = tf.shape(x)
-        b4 = GlobalAveragePooling2D()(x)
-        b4_shape = tf.keras.backend.int_shape(b4)
-        # from (b_size, channels)->(b_size, 1, 1, channels)
-        b4 = Reshape((1, 1, b4_shape[1]))(b4)
-        b4 = Conv2D(256, (1, 1), padding='same',
-                    kernel_regularizer=DECAY,
-                    use_bias=False, name='image_pooling')(b4)
-        b4 = BatchNormalization(name='image_pooling_BN', epsilon=1e-5)(b4)
-        b4 = Activation(activation)(b4)
-        # upsample. have to use compat because of the option align_corners
-        size_before = tf.keras.backend.int_shape(x)
-        b4 = tf.keras.layers.experimental.preprocessing.Resizing(
-                *size_before[1:3], interpolation="bilinear"
-            )(b4)
+    # Image Feature branch
+    shape_before = tf.shape(x)
+    b4 = GlobalAveragePooling2D()(x)
+    b4_shape = tf.keras.backend.int_shape(b4)
+    # from (b_size, channels)->(b_size, 1, 1, channels)
+    b4 = Reshape((1, 1, b4_shape[1]))(b4)
+    b4 = Conv2D(256, (1, 1), padding='same',
+                kernel_regularizer=DECAY,
+                use_bias=False, name='image_pooling')(b4)
+    b4 = BatchNormalization(name='image_pooling_BN', epsilon=1e-5)(b4)
+    b4 = Activation(activation)(b4)
+    # upsample. have to use compat because of the option align_corners
+    size_before = tf.keras.backend.int_shape(x)
+    b4 = tf.keras.layers.experimental.preprocessing.Resizing(
+            *size_before[1:3], interpolation="bilinear"
+        )(b4)
 
-        # b4 = UpSampling2D(size=(32, 64), interpolation="bilinear")(b4)
-        # simple 1x1
-        b0 = Conv2D(256, (1, 1), padding='same',
-                    kernel_regularizer=DECAY,
-                    use_bias=False, name='aspp0')(x)
-        b0 = BatchNormalization(name='aspp0_BN', epsilon=1e-5)(b0)
-        b0 = Activation(activation, name='aspp0_activation')(b0)
+    # b4 = UpSampling2D(size=(32, 64), interpolation="bilinear")(b4)
+    # simple 1x1
+    b0 = Conv2D(256, (1, 1), padding='same',
+                kernel_regularizer=DECAY,
+                use_bias=False, name='aspp0')(x)
+    b0 = BatchNormalization(name='aspp0_BN', epsilon=1e-5)(b0)
+    b0 = Activation(activation, name='aspp0_activation')(b0)
 
-        b1 = SepConv_BN(x, 256, 'aspp1',
-                        rate=atrous_rates[0], depth_activation=True, epsilon=1e-5)
-        # rate = 12 (24)
-        b2 = SepConv_BN(x, 256, 'aspp2',
-                        rate=atrous_rates[1], depth_activation=True, epsilon=1e-5)
-        # rate = 18 (36)
-        b3 = SepConv_BN(x, 256, 'aspp3',
-                        rate=atrous_rates[2], depth_activation=True, epsilon=1e-5)
+    b1 = SepConv_BN(x, 256, 'aspp1',
+                    rate=atrous_rates[0], depth_activation=True, epsilon=1e-5)
+    # rate = 12 (24)
+    b2 = SepConv_BN(x, 256, 'aspp2',
+                    rate=atrous_rates[1], depth_activation=True, epsilon=1e-5)
+    # rate = 18 (36)
+    b3 = SepConv_BN(x, 256, 'aspp3',
+                    rate=atrous_rates[2], depth_activation=True, epsilon=1e-5)
 
-        # concatenate ASPP branches & project
-        x = Concatenate()([b4, b0, b1, b2, b3])
+    # concatenate ASPP branches & project
+    x = Concatenate()([b4, b0, b1, b2, b3])
 
-        x = Conv2D(256, (1, 1), padding='same',
-                   kernel_regularizer=DECAY,
-                   use_bias=False, name='concat_projection')(x)
-        x = BatchNormalization(name='concat_projection_BN', epsilon=1e-5)(x)
-        x = Activation(activation)(x)
-        x = Dropout(0.1)(x)
+    x = Conv2D(256, (1, 1), padding='same',
+               kernel_regularizer=DECAY,
+               use_bias=False, name='concat_projection')(x)
+    x = BatchNormalization(name='concat_projection_BN', epsilon=1e-5)(x)
+    x = Activation(activation)(x)
 
-        skip_size = tf.keras.backend.int_shape(skip1)
-        x = tf.keras.layers.experimental.preprocessing.Resizing(
-            *skip_size[1:3], interpolation="bilinear"
-        )(x)
+    x = Dropout(0.1)(x)
 
-        # x = UpSampling2D((4,4), interpolation='bilinear')(x)
+    skip_size = tf.keras.backend.int_shape(skip1)
+    x = tf.keras.layers.experimental.preprocessing.Resizing(
+        *skip_size[1:3], interpolation="bilinear"
+    )(x)
 
-        dec_skip1 = Conv2D(48, (1, 1), padding='same',
-                           kernel_regularizer=DECAY,
-                           use_bias=False, name='feature_projection0')(skip1)
-        dec_skip1 = BatchNormalization(
-            name='feature_projection0_BN', epsilon=1e-5)(dec_skip1)
-        dec_skip1 = Activation(activation)(dec_skip1)
-        x = Concatenate()([x, dec_skip1])
-        x = SepConv_BN(x, 256, 'decoder_conv0',
-                       depth_activation=True, epsilon=1e-5)
-        x = SepConv_BN(x, 256, 'decoder_conv1',
-                       depth_activation=True, epsilon=1e-5)
+    aux_temp_aspp = x
 
+    # x = UpSampling2D((4,4), interpolation='bilinear')(x)
 
-    elif mode =='fpn':
-        fpn_features = c3, x
-        for i in range(fpn_times):
-            print(i)
-            fpn_features = _build_fpn(fpn_features, num_channels=fpn_channels, activation=activation, id=i)
+    dec_skip1 = Conv2D(48, (1, 1), padding='same',
+                       kernel_regularizer=DECAY,
+                       use_bias=False, name='feature_projection0')(skip1)
+    dec_skip1 = BatchNormalization(
+        name='feature_projection0_BN', epsilon=1e-5)(dec_skip1)
+    dec_skip1 = Activation(activation)(dec_skip1)
+    x = Concatenate()([x, dec_skip1])
+    x = SepConv_BN(x, 256, 'decoder_conv0',
+                   depth_activation=True, epsilon=1e-5)
+    x = SepConv_BN(x, 256, 'decoder_conv1',
+                   depth_activation=True, epsilon=1e-5)
 
-        b1 = SepConv_BN(fpn_features[1], fpn_channels, 'rate6',
-                        rate=atrous_rates[0], depth_activation=True, epsilon=1e-5)
-        b2 = SepConv_BN(fpn_features[1], fpn_channels, 'rate12',
-                        rate=atrous_rates[1], depth_activation=True, epsilon=1e-5)
-        b3 = SepConv_BN(fpn_features[1], fpn_channels, 'rate18',
-                        rate=atrous_rates[2], depth_activation=True, epsilon=1e-5)
+    return x, aux_temp_aspp
 
-        fpn_x = Concatenate()([x, fpn_features[1], b1, b2, b3])
+def proposed(features, fpn_times=2, activation='swish', fpn_channels=64, mode='fpn'):
+    skip1, c3, x = features # c1 48 / c2 64
 
+    """
+    """
+    x = DAPPPM(x, 256, 256)
 
-        x = Conv2D(256, (1, 1), padding='same',
-                   use_bias=False)(fpn_x)
-        x = BatchNormalization(epsilon=1e-5)(x)
-        x = Activation(activation)(x)
-        x = Dropout(0.1)(x)
+    x = Dropout(0.1)(x)
 
-        x = UpSampling2D()(x)
+    skip_size = tf.keras.backend.int_shape(skip1)
+    x = tf.keras.layers.experimental.preprocessing.Resizing(
+        *skip_size[1:3], interpolation="bilinear"
+    )(x)
 
-        dec_skip2 = Conv2D(48, (1, 1), padding='same',
-                           use_bias=False, name='feature_projection0')(fpn_features[0])
-        dec_skip2 = BatchNormalization(
-            name='feature_projection0_BN', epsilon=1e-5)(dec_skip2)
-        dec_skip2 = Activation(activation)(dec_skip2)
+    aux_temp_aspp = x
 
-        x = Concatenate()([x, dec_skip2])
-        x = Conv2D(256, (1, 1), padding='same',
-                   use_bias=False)(x)
-        x = BatchNormalization(epsilon=1e-5)(x)
-        x = Activation(activation)(x)
+    # x = UpSampling2D((4,4), interpolation='bilinear')(x)
 
-        x = UpSampling2D()(x)
+    dec_skip1 = Conv2D(48, (1, 1), padding='same',
+                       kernel_regularizer=DECAY,
+                       use_bias=False, name='feature_projection0')(skip1)
+    dec_skip1 = BatchNormalization(
+        name='feature_projection0_BN', epsilon=1e-5)(dec_skip1)
+    dec_skip1 = Activation(activation)(dec_skip1)
+    x = Concatenate()([x, dec_skip1])
+    x = SepConv_BN(x, 256, 'decoder_conv0',
+                   depth_activation=True, epsilon=1e-5)
+    x = SepConv_BN(x, 256, 'decoder_conv1',
+                   depth_activation=True, epsilon=1e-5)
 
-        dec_skip1 = Conv2D(32, (1, 1), padding='same',
-                           use_bias=False, name='feature_projection1')(skip1)
-        dec_skip1 = BatchNormalization(
-            name='feature_projection1_BN', epsilon=1e-5)(dec_skip1)
-        dec_skip1 = Activation(activation)(dec_skip1)
+    return x, aux_temp_aspp
 
-        x = Concatenate()([x, dec_skip1])
-        x = SepConv_BN(x, 256, 'decoder_out1',
-                       depth_activation=True, epsilon=1e-5)
-        x = SepConv_BN(x, 256, 'decoder_out2',
-                       depth_activation=True, epsilon=1e-5)
+def DAPPPM(x_in, branch_planes, outplanes):
+    epsilon = 1e-3
+    activation = 'swish'
+    input_shape = tf.keras.backend.int_shape(x_in)
+    height = input_shape[1]
+    width = input_shape[2]
+    # Average pooling kernel size
+    kernal_sizes_height = [5, 9, 17, height]
+    kernal_sizes_width = [5, 9, 17, width]
+    # Average pooling strides size
+    stride_sizes_height = [2, 4, 8, height]
+    stride_sizes_width = [2, 4, 8, width]
+    x_list = []
 
+    # y1
+    scale0 = BatchNormalization(epsilon=epsilon)(x_in)
+    scale0 = Activation(activation)(scale0)
+    scale0 = Conv2D(branch_planes, kernel_size=(1, 1), use_bias=False, kernel_regularizer=DECAY)(scale0)
+    x_list.append(scale0)
 
+    for i in range(len(kernal_sizes_height)):
+        # first apply average pooling
+        temp = tf.keras.layers.AveragePooling2D(pool_size=(kernal_sizes_height[i], kernal_sizes_width[i]),
+                                       strides=(stride_sizes_height[i], stride_sizes_width[i]),
+                                       padding="same")(x_in)
+        temp = BatchNormalization(epsilon=epsilon)(temp)
+        temp = Activation(activation)(temp)
+        # then apply 1*1 conv
+        temp = Conv2D(branch_planes, kernel_size=(1, 1), use_bias=False, kernel_regularizer=DECAY)(temp)
+        # then resize using bilinear
+        temp = tf.image.resize(temp, size=(height, width), )
+        # add current and previous layer output
+        temp = Add()([temp, x_list[i]])
+        temp = BatchNormalization(epsilon=epsilon)(temp)
+        temp = Activation(activation)(temp)
+        # at the end apply 3*3 conv
+        temp = Conv2D(branch_planes, kernel_size=(3, 3), use_bias=False, padding="same",
+                             kernel_regularizer=DECAY)(temp)
+        # y[i+1]
+        x_list.append(temp)
 
-    else:
-        raise print("check decoder name")
+    # concatenate all
+    combined = concatenate(x_list, axis=-1)
 
+    combined = BatchNormalization(epsilon=epsilon)(combined)
+    combined = Activation(activation)(combined)
+    combined = Conv2D(outplanes, kernel_size=(1, 1), use_bias=False, kernel_regularizer=DECAY)(combined)
 
+    shortcut = BatchNormalization(epsilon=epsilon)(x_in)
+    shortcut = Activation(activation)(shortcut)
+    shortcut = Conv2D(outplanes, kernel_size=(1, 1), use_bias=False, kernel_regularizer=DECAY)(shortcut)
 
-    return x
+    # final = combined + shortcut
+    final = Add()([combined, shortcut])
+
+    return final
 
 
 def gap_residual_block(input_tensor, activation='swish', squeeze_ratio=8, fpn_channels=256):

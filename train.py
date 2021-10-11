@@ -23,8 +23,8 @@ tf.keras.backend.clear_session()
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=16)
-parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=200)
-parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.002)
+parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=120)
+parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.001)
 parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.0005)
 parser.add_argument("--optimizer",     type=str,   help="Optimizer", default='adam')
 parser.add_argument("--model_name",     type=str,   help="저장될 모델 이름",
@@ -120,14 +120,14 @@ if DISTRIBUTION_MODE:
         # mIoU = MeanIOU(19)
         mIoU = MIoU(20)
         loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1)
-        aux_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.2)
-        aspp_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.5)
+        aux_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.2) # original factor =0.2
+        aspp_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.5) #  original factor =0.5
 
         model = seg_model_build(image_size=IMAGE_SIZE, mode='seg', augment=True, weight_decay=WEIGHT_DECAY,
                                 optimizer=OPTIMIZER_TYPE)
 
         losses = {'output': loss.ce_loss,
-                  'aux': aux_loss.ce_loss,
+                  'backbone_aux': aux_loss.ce_loss,
                   'aspp_aux': aspp_loss.ce_loss
                   }
 

@@ -93,23 +93,49 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
         # base = EfficientNetV2S(pretrained="imagenet21k-ft1k", input_shape=input_shape, num_classes=0, dropout=0.2)
         # base = EfficientNetV2S(pretrained="imagenet", input_shape=input_shape, num_classes=0, dropout=1e-6)
     base = EfficientNetV2S(input_shape=input_shape, pretrained="imagenet")
+    # base.load_weights('./checkpoints/efficientnetv2-s-imagenet.h5', by_name=True)")
+    # base = EfficientNetV2M(input_shape=input_shape, pretrained="imagenet")
 
     base.summary()
-    base.load_weights('./checkpoints/efficientnetv2-s-imagenet.h5', by_name=True)
+
     c5 = base.get_layer('add_34').output  # 16x32 256 or get_layer('post_swish') => 확장된 채널 1280
     # c5 = base.get_layer('post_swish').output  # 32x64 256 or get_layer('post_swish') => 확장된 채널 1280
     # c4 = base.get_layer('add_20').output  # 32x64 64
     c3 = base.get_layer('add_7').output  # 64x128 48
+    # c2 = base.get_layer('add_6').output  # 128x256 48
     c2 = base.get_layer('add_4').output  # 128x256 48
 
-    features = [c2, c3, c5]
+    """
+    for EfficientNetV2M
+    32x64 = 'add_50'
+    64x128 = 'add_10'
+    128x256 = 'add_6'
+    
+    'add_10'
+    """
+
+    """
+    for EfficientNetV2S
+    32x64 = 'add_34'
+    64x128 = 'add_7'
+    128x256 = 'add_4'
+    """
+    features = [c2, c5]
 
     model_input = base.input
     # model_output, aspp_aux = deepLabV3Plus(features=features, fpn_times=2, activation='swish', mode='deeplabv3+')
     model_output, aspp_aux = proposed(features=features, fpn_times=2, activation='swish', mode='deeplabv3+')
+    """
+    model_output: 128x256
+    aspp_aux: 64x128
+    dec_aux: 128x256"""
+
+
     decoder_output = classifier(model_output, num_classes=classes, upper=4, name='output')
-    aux_output = classifier(c3, num_classes=classes, use_aux=True, upper=8, name='aux')
+    aux_output = classifier(c3, num_classes=classes, use_aux=True, upper=8, name='backbone_aux')
     aspp_aux_output = classifier(aspp_aux, num_classes=classes, use_aux=True, upper=4, name='aspp_aux')
+
+
 
     model_output = [decoder_output, aux_output, aspp_aux_output]
 

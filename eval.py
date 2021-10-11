@@ -63,7 +63,7 @@ test_steps = dataset.number_valid // BATCH_SIZE
 test_set = dataset.get_testData(dataset.valid_data)
 
 model = seg_model_build(image_size=IMAGE_SIZE, mode='seg', augment=True, weight_decay=WEIGHT_DECAY, num_classes=19)
-weight_name = '_1007_best_loss'
+weight_name = '_1011_best_miou'
 model.load_weights(CHECKPOINT_DIR + weight_name + '.h5',by_name=True)
 model.summary()
 print(get_flops(model, batch_size=1))

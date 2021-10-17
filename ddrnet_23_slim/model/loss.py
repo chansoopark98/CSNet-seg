@@ -1,4 +1,5 @@
 import tensorflow as tf
+import tensorflow_probability as tfp
 
 class Loss:
     def __init__(self, batch_size):
@@ -8,7 +9,9 @@ class Loss:
         ce = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True,
                                                            reduction=tf.keras.losses.Reduction.NONE)(y_true=y_true,
                                                                                                      y_pred=y_pred)
-        return ce
+        min_loss = tfp.stats.percentile(ce, 80, interpolation='midpoint')
+        loss = tf.boolean_mask(ce, ce > min_loss)
+        return loss
 
     def aux_loss(self, y_true, y_pred):
         aux_logits = y_pred[:, :, :0]

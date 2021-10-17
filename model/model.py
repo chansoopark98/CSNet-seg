@@ -124,7 +124,7 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
 
     model_input = base.input
     # model_output, aspp_aux = deepLabV3Plus(features=features, fpn_times=2, activation='swish', mode='deeplabv3+')
-    model_output, aspp_aux = proposed(features=features, fpn_times=2, activation='swish', mode='deeplabv3+')
+    model_output, aspp_aux, skip_aux = proposed(features=features, fpn_times=2, activation='swish', mode='deeplabv3+')
     """
     model_output: 128x256
     aspp_aux: 64x128
@@ -132,12 +132,26 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
 
 
     decoder_output = classifier(model_output, num_classes=classes, upper=4, name='output')
-    aux_output = classifier(c3, num_classes=classes, use_aux=True, upper=8, name='backbone_aux')
-    aspp_aux_output = classifier(aspp_aux, num_classes=classes, use_aux=True, upper=4, name='aspp_aux')
+    aux_output = classifier(c3, num_classes=classes, use_aux=True, upper=8, name='eff')
+    aspp_aux_output = classifier(aspp_aux, num_classes=classes, use_aux=True, upper=4, name='aspp')
+    skip_aux_output = classifier(skip_aux, num_classes=classes, use_aux=True, upper=4, name='skip')
 
+    """
+    Best Method
+    Backbone : EfficientNetV2S 
+        strides : [1, 2, 2, 2, 1, 1]
+    
+    Decoder : DeepLabV3+
+    Aux : 
+        EfficientV2S backbone get_layer('add_7') 64x128 (8배 업스케일링) loss factor = 0.2
+        DeepLabV3+ ASPP output 4배 업스케일링 직후 loss factor = 0.5
+    Learning rate 0.001
+    Weight Decay = l2 (0.0001)/2
+    Optimizer : Adam
+    Epochs: 120
+    """
 
-
-    model_output = [decoder_output, aux_output, aspp_aux_output]
+    model_output = [decoder_output, aux_output, aspp_aux_output, skip_aux_output]
 
 
     # elif backbone == 'efficientV2-m':

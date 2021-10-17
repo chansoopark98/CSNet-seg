@@ -73,16 +73,31 @@ class CityScapes:
 
         return (img, labels)
 
+
     @tf.function
     def preprocess(self, sample):
         img = sample['image_left']
         labels = sample['segmentation_label']-1
 
-        concat_img = tf.concat([img, labels], axis=-1)
-        concat_img = tf.image.random_crop(concat_img, (self.image_size[0], self.image_size[1], 4))
+        # # if tf.random.uniform([]) > 0.5:
+        # scale = tf.random.uniform([], 0.75, 2.0)
+        # new_h = 1024 * scale
+        # # new_h = 512
+        # new_w = 2048 * scale
+        # # new_w = 1024
+        # img = tf.image.resize(img, size=(new_h, new_w),
+        #                 method=tf.image.ResizeMethod.BILINEAR)
+        # labels = tf.image.resize(labels, size=(new_h, new_w),
+        #                 method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+        #
+        # img = tf.cast(img, tf.uint8)
 
+        concat_img = tf.concat([img, labels], axis=-1)
+        concat_img = tf.image.random_crop(concat_img, [self.image_size[0], self.image_size[1], 4])
+        #
         img = concat_img[:, :, :3]
         labels = concat_img[:, :, 3:]
+
 
         return (img, labels)
 
@@ -99,6 +114,9 @@ class CityScapes:
 
         img = tf.image.central_crop(img, 0.5)
         labels = tf.image.central_crop(labels, 0.5)
+
+        # img = tf.image.resize(img, (self.image_size[0], self.image_size[1]), method=tf.image.ResizeMethod.BILINEAR)
+        # labels = tf.image.resize(labels, (self.image_size[0], self.image_size[1]), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
 
         img = tf.cast(img, dtype=tf.float32)
         labels = tf.cast(labels, dtype=tf.int64)

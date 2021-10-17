@@ -64,11 +64,39 @@ class CityScapes:
 
     @tf.function
     def preprocess(self, sample):
-        id = sample['image_id']
+        img = sample['image_left']
+        labels = sample['segmentation_label']
+
+        # scale = tf.random.uniform([], 0.5, 2.0)
+        # new_h = 1024 * scale
+        # new_w = 2048 * scale
+        # img = tf.cast(tf.image.resize(img, size=(new_h, new_w),
+        #                 method=tf.image.ResizeMethod.BILINEAR), tf.int32)
+        # labels = tf.cast(tf.image.resize(labels, size=(new_h, new_w),
+        #                 method=tf.image.ResizeMethod.NEAREST_NEIGHBOR), tf.int32)
+        #
+        #
+        # concat_img = tf.concat([img, labels], axis=-1)
+        # concat_img = tf.image.random_crop(concat_img, [self.image_size[0], self.image_size[1], 4])
+        #
+        # img = concat_img[:, :, :3]
+        # labels = concat_img[:, :, 3:]
+        # labels -= 1
+        # img = tf.cast(img, tf.float32)
+        # img = tf.expand_dims(img, 0)
+        labels = tf.cast(labels, tf.float32)
+        labels = tf.expand_dims(labels, axis=0)
+        grad_components = tf.image.sobel_edges(labels)
+
+        grad_mag_components = grad_components ** 2
+
+        grad_mag_square = tf.math.reduce_sum(grad_mag_components, axis=-1)
+
+        labels = tf.sqrt(grad_mag_square)
 
 
 
-        return (id)
+        return (img, labels)
 
     @tf.function
     def preprocess_valid(self, sample):
@@ -106,10 +134,11 @@ class CityScapes:
 
     def get_trainData(self, train_data):
         # num_parallel_calls=AUTO
-        train_data = train_data.shuffle(buffer_size=1000, reshuffle_each_iteration=True)
+        train_data = train_data.map(self.preprocess, num_parallel_calls=AUTO)
+        # train_data = train_data.shuffle(buffer_size=1000, reshuffle_each_iteration=True)
         # train_data = train_data.map(self.augmentation, num_parallel_calls=AUTO)
         # train_data = train_data.prefetch(AUTO)
-        train_data = train_data.repeat()
+        # train_data = train_data.repeat()
         # train_data = train_data.padded_batch(self.batch_size)
 
         return train_data
@@ -159,14 +188,16 @@ if __name__ == '__main__':
     train_dataset_config = CityScapes(DATASET_DIR, IMAGE_SIZE, BATCH_SIZE, mode='train')
     train_data = train_dataset_config.get_trainData(train_dataset_config.train_data)
 
+    import matplotlib.pyplot as plt
 
     buffer = ''
     id_list = []
     stack = 0
     for id in train_data.take(2975):
-        if id in id_list:
-            print(id)
-            stack+=1
-        id_list.append(id)
+        x, y = id
 
-    print(stack)
+        # plt.imshow(y[0])
+        # plt.show()
+
+        plt.imshow(y[0])
+        plt.show()

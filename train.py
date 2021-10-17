@@ -121,14 +121,16 @@ if DISTRIBUTION_MODE:
         mIoU = MIoU(20)
         loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1)
         aux_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.2) # original factor =0.2
-        aspp_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.5) #  original factor =0.5
+        aspp_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.4) #  original factor =0.5
+        skip_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.9) #  original factor =0.5
 
         model = seg_model_build(image_size=IMAGE_SIZE, mode='seg', augment=True, weight_decay=WEIGHT_DECAY,
                                 optimizer=OPTIMIZER_TYPE)
 
         losses = {'output': loss.ce_loss,
-                  'backbone_aux': aux_loss.ce_loss,
-                  'aspp_aux': aspp_loss.ce_loss
+                  'eff': aux_loss.ce_loss,
+                  'aspp': aspp_loss.ce_loss,
+                  'skip': skip_loss.ce_loss
                   }
 
         model.compile(
@@ -148,6 +150,8 @@ if DISTRIBUTION_MODE:
                 validation_steps=validation_steps,
                 epochs=EPOCHS,
                 callbacks=callback)
+
+        model.save_weights(CHECKPOINT_DIR + '_' + SAVE_MODEL_NAME + '_final_loss.h5')
 
 else:
     # mIoU = MeanIOU(19)

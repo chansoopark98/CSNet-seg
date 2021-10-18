@@ -120,19 +120,19 @@ if DISTRIBUTION_MODE:
         # mIoU = MeanIOU(19)
         mIoU = MIoU(20)
         loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1)
-        # aux_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.2) # original factor =0.2
+        aux_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.2) # original factor =0.2
         # aspp_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.4) #  original factor =0.5
         # skip_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.9) #  original factor =0.5
 
         edge_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1) #  original factor =0.5
-        body_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.8) #  original factor =0.5
+        body_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1) #  original factor =0.5
 
         model = seg_model_build(image_size=IMAGE_SIZE, mode='seg', augment=True, weight_decay=WEIGHT_DECAY,
                                 optimizer=OPTIMIZER_TYPE)
 
         losses = {'output': loss.ce_loss,
                   'edge': edge_loss.sigmoid_loss,
-                  'body': body_loss.ce_loss,
+                  'eff': aux_loss.ce_loss
 
                   }
 

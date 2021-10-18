@@ -232,7 +232,14 @@ def proposed_experiments(features, fpn_times=2, activation='swish', fpn_channels
     )(x)
 
 
-    x, edge = edge_creater(x)
+    x_semantic, edge = edge_creater(x)
+
+    x = Concatenate()([x, x_semantic])
+    x = Conv2D(256, (1, 1), padding='same',
+               kernel_regularizer=DECAY,
+               use_bias=False, name='concat_semantic')(x)
+    x = BatchNormalization(name='concat_semantic_BN', epsilon=EPSILON)(x)
+    x = Activation(activation)(x)
 
 
     dec_skip1 = Conv2D(48, (1, 1), padding='same',
@@ -251,8 +258,8 @@ def proposed_experiments(features, fpn_times=2, activation='swish', fpn_channels
 
 def edge_creater(x, name='edge_creater'):
     x_down = conv3x3(x=x, filters=256, prefix=name+'_conv1', stride=2, kernel_size=3, rate=1, epsilon=EPSILON)
-    x_down = conv3x3(x=x_down, filters=256, prefix=name+'_conv2', stride=2, kernel_size=3, rate=1, epsilon=EPSILON)
-    x_down = conv3x3(x=x_down, filters=256, prefix=name+'_conv3', stride=2, kernel_size=3, rate=1, epsilon=EPSILON)
+    x_down = conv3x3(x=x_down, filters=256, prefix=name+'_conv2', stride=2, kernel_size=3, rate=3, epsilon=EPSILON)
+    x_down = conv3x3(x=x_down, filters=256, prefix=name+'_conv3', stride=2, kernel_size=3, rate=5, epsilon=EPSILON)
 
     # x_down = 16x32@256
 

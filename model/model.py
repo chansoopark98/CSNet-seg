@@ -134,6 +134,7 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
     total_output = Add()([body_output, edge_output])
 
     total_cls = classifier(total_output, num_classes=classes, upper=4, name='output')
+    body_cls = classifier(body_output, num_classes=classes, upper=4, name='body')
     edge_cls = classifier(edge_output, num_classes=1, upper=4, name='edge')
 
     aux_output = classifier(c3, num_classes=classes, use_aux=True, upper=8, name='eff')
@@ -155,7 +156,7 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
     Epochs: 120
     """
 
-    model_output = [total_cls, edge_cls, aux_output]
+    model_output = [total_cls, edge_cls, aux_output, body_cls]
 
 
     # elif backbone == 'efficientV2-m':

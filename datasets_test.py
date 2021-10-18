@@ -65,7 +65,7 @@ class CityScapes:
     @tf.function
     def preprocess(self, sample):
         img = sample['image_left']
-        labels = sample['segmentation_label']
+        labels = sample['segmentation_label']-1
 
         gt = tf.cast(labels, tf.float32)
         gt = tf.expand_dims(gt, axis=0)

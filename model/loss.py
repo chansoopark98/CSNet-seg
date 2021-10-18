@@ -159,6 +159,43 @@ class Seg_loss:
 
         return ce_loss
 
+    def body_loss(self, y_true, y_pred):
+        gt = tf.cast(y_true, tf.float32)
+
+        grad_components = tf.image.sobel_edges(gt)
+
+        grad_mag_components = grad_components ** 2
+
+        grad_mag_square = tf.math.reduce_sum(grad_mag_components, axis=-1)
+
+        gt = tf.sqrt(grad_mag_square)
+
+        mask = tf.cast(tf.where(gt != 0, 0.0, 1), tf.int64)
+        y_true = tf.cast(y_true, tf.int64)
+        y_true *= mask
+
+        y_true = tf.squeeze(y_true, axis=3)
+        y_true = tf.reshape(y_true, [-1, ])
+        # todo
+        raw_prediction = tf.reshape(y_pred, [-1, self.num_classes])
+        indices = tf.squeeze(tf.where(tf.less_equal(y_true, self.num_classes - 1)), 1)
+        gt = tf.cast(tf.gather(y_true, indices), tf.int32)
+        prediction = tf.gather(raw_prediction, indices)
+
+        ce_loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True,
+                                                                reduction=tf.keras.losses.Reduction.NONE)(y_true=gt,
+                                                                                                          y_pred=prediction)
+
+        # ce_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=gt, logits=prediction)
+
+        # weights = tf.gather(self.cls_weight, gt)
+        # ce_loss = (ce_loss * weights) * self.aux_factor
+        # ce_loss *= self.cls_weight
+
+        return ce_loss
+
+
+
     def sigmoid_loss(self, y_true, y_pred):
         y_true += 1
 

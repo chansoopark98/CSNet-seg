@@ -3,7 +3,7 @@ from model.efficientnet_v2 import *
 # from model.efficientnet_v2 import EfficientNetV2S
 from model.resnet101 import *
 from tensorflow.keras import layers
-from model.fpn_model import deepLabV3Plus, SepConv_BN, DECAY, proposed
+from model.fpn_model import deepLabV3Plus, SepConv_BN, DECAY, proposed, proposed_experiments
 
 from tensorflow.keras.layers import (
     MaxPooling2D, SeparableConv2D, UpSampling2D, Activation, BatchNormalization,
@@ -124,17 +124,22 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
 
     model_input = base.input
     # model_output, aspp_aux = deepLabV3Plus(features=features, fpn_times=2, activation='swish', mode='deeplabv3+')
-    model_output, aspp_aux, skip_aux = proposed(features=features, fpn_times=2, activation='swish', mode='deeplabv3+')
+    # model_output, aspp_aux, skip_aux = proposed(features=features, fpn_times=2, activation='swish', mode='deeplabv3+')
+    body_output, edge_output = proposed_experiments(features=features, fpn_times=2, activation='swish', mode='deeplabv3+')
     """
     model_output: 128x256
     aspp_aux: 64x128
     dec_aux: 128x256"""
 
+    total_output = Add()([body_output, edge_output])
 
-    decoder_output = classifier(model_output, num_classes=classes, upper=4, name='output')
-    aux_output = classifier(c3, num_classes=classes, use_aux=True, upper=8, name='eff')
-    aspp_aux_output = classifier(aspp_aux, num_classes=classes, use_aux=True, upper=4, name='aspp')
-    skip_aux_output = classifier(skip_aux, num_classes=classes, use_aux=True, upper=4, name='skip')
+    total_cls = classifier(total_output, num_classes=classes, upper=4, name='output')
+    edge_cls = classifier(edge_output, num_classes=1, upper=4, name='edge')
+    body_cls = classifier(body_output, num_classes=classes, upper=4, name='body')
+
+    # aux_output = classifier(c3, num_classes=classes, use_aux=True, upper=8, name='eff')
+    # aspp_aux_output = classifier(aspp_aux, num_classes=classes, use_aux=True, upper=4, name='aspp')
+    # skip_aux_output = classifier(skip_aux, num_classes=classes, use_aux=True, upper=4, name='skip')
 
     """
     Best Method
@@ -151,7 +156,7 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
     Epochs: 120
     """
 
-    model_output = [decoder_output, aux_output, aspp_aux_output, skip_aux_output]
+    model_output = [total_cls, edge_cls, body_cls]
 
 
     # elif backbone == 'efficientV2-m':

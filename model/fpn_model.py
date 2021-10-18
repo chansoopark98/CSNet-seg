@@ -1,7 +1,7 @@
 from tensorflow.keras.layers import (
     MaxPooling2D, SeparableConv2D, UpSampling2D, Activation, BatchNormalization,
     GlobalAveragePooling2D, Conv2D, Dropout, Concatenate, multiply, Add, concatenate,
-    DepthwiseConv2D, Reshape, ZeroPadding2D, Dense, GlobalMaxPooling2D, Permute, Lambda)
+    DepthwiseConv2D, Reshape, ZeroPadding2D, Dense, GlobalMaxPooling2D, Permute, Lambda, Subtract)
 import tensorflow.keras.backend as K
 import tensorflow as tf
 
@@ -177,6 +177,98 @@ def proposed(features, fpn_times=2, activation='swish', fpn_channels=64, mode='f
     x = conv3x3(x, 256, 'decoder_conv1', epsilon=EPSILON)
 
     return x, aspp_aux, skip_aux
+
+def proposed_experiments(features, fpn_times=2, activation='swish', fpn_channels=64, mode='fpn'):
+    skip1, x = features # c1 48 / c2 64
+
+    # Image Feature branch
+    shape_before = tf.shape(x)
+    b4 = GlobalAveragePooling2D()(x)
+    b4_shape = tf.keras.backend.int_shape(b4)
+    # from (b_size, channels)->(b_size, 1, 1, channels)
+    b4 = Reshape((1, 1, b4_shape[1]))(b4)
+    b4 = Conv2D(256, (1, 1), padding='same',
+                kernel_regularizer=DECAY,
+                use_bias=False, name='image_pooling')(b4)
+    b4 = BatchNormalization(name='image_pooling_BN', epsilon=EPSILON)(b4)
+    b4 = Activation(activation)(b4)
+    # upsample. have to use compat because of the option align_corners
+    size_before = tf.keras.backend.int_shape(x)
+    b4 = tf.keras.layers.experimental.preprocessing.Resizing(
+            *size_before[1:3], interpolation="bilinear"
+        )(b4)
+
+    # b4 = UpSampling2D(size=(32, 64), interpolation="bilinear")(b4)
+    # simple 1x1
+    b0 = Conv2D(256, (1, 1), padding='same',
+                kernel_regularizer=DECAY,
+                use_bias=False, name='aspp0')(x)
+    b0 = BatchNormalization(name='aspp0_BN', epsilon=EPSILON)(b0)
+    b0 = Activation(activation, name='aspp0_activation')(b0)
+
+    b1 = conv3x3(x, 256, 'aspp1',
+                    rate=atrous_rates[0], epsilon=EPSILON)
+    # rate = 12 (24)
+    b2 = conv3x3(x, 256, 'aspp2',
+                    rate=atrous_rates[1], epsilon=EPSILON)
+    # rate = 18 (36)
+    b3 = conv3x3(x, 256, 'aspp3',
+                    rate=atrous_rates[2], epsilon=EPSILON)
+    # concatenate ASPP branches & project
+    x = Concatenate()([b4, b0, b1, b2, b3])
+
+    x = Conv2D(256, (1, 1), padding='same',
+               kernel_regularizer=DECAY,
+               use_bias=False, name='concat_projection')(x)
+    x = BatchNormalization(name='concat_projection_BN', epsilon=EPSILON)(x)
+    x = Activation(activation)(x)
+
+    x = Dropout(0.1)(x)
+
+    # x to 128x256 size
+    skip_size = tf.keras.backend.int_shape(skip1)
+    x = tf.keras.layers.experimental.preprocessing.Resizing(
+        *skip_size[1:3], interpolation="bilinear"
+    )(x)
+
+
+    x, edge = edge_creater(x)
+
+
+    dec_skip1 = Conv2D(48, (1, 1), padding='same',
+                       kernel_regularizer=DECAY,
+                       use_bias=False, name='feature_projection0')(skip1)
+    dec_skip1 = BatchNormalization(
+        name='feature_projection0_BN', epsilon=EPSILON)(dec_skip1)
+    dec_skip1 = Activation(activation)(dec_skip1)
+    x = Concatenate()([x, dec_skip1])
+
+    x = conv3x3(x, 256, 'decoder_conv0', epsilon=EPSILON)
+
+    x = conv3x3(x, 256, 'decoder_conv1', epsilon=EPSILON)
+
+    return x, edge
+
+def edge_creater(x, name='edge_creater'):
+    x_down = conv3x3(x=x, filters=256, prefix=name+'_conv1', stride=2, kernel_size=3, rate=1, epsilon=EPSILON)
+    x_down = conv3x3(x=x_down, filters=256, prefix=name+'_conv2', stride=2, kernel_size=3, rate=1, epsilon=EPSILON)
+    x_down = conv3x3(x=x_down, filters=256, prefix=name+'_conv3', stride=2, kernel_size=3, rate=1, epsilon=EPSILON)
+
+    # x_down = 16x32@256
+
+    skip_size = tf.keras.backend.int_shape(x)
+    x_up = tf.keras.layers.experimental.preprocessing.Resizing(
+        *skip_size[1:3], interpolation="bilinear"
+    )(x_down)
+
+    x_concat = Concatenate()([x, x_up])
+    x_concat = conv3x3(x=x_concat, filters=256, prefix=name + '_concat_conv', epsilon=EPSILON)
+
+    x_edge = Subtract()([x, x_concat])
+
+    return x_concat, x_edge
+
+
 
 def conv3x3(x, filters, prefix, stride=1, kernel_size=3, rate=1, depth_activation=False, epsilon=1e-3,  activation='swish', mode='sep'):
     if mode != 'std':

@@ -1,4 +1,5 @@
 import tensorflow as tf
+import tensorflow_probability as tfp
 import itertools
 from typing import Any, Optional
 _EPSILON = tf.keras.backend.epsilon()
@@ -100,7 +101,7 @@ class SparseCategoricalFocalLoss(tf.keras.losses.Loss):
                                              gamma=self.gamma,
                                              from_logits=self.from_logits)
 
-import tensorflow.keras.backend as K
+
 
 class Seg_loss:
     def     __init__(self, batch_size, use_aux=False, distribute_mode=True, use_focal=False, aux_factor=1):
@@ -111,6 +112,7 @@ class Seg_loss:
         self.distribute_mode = distribute_mode
         self.use_focal = use_focal
         self.aux_factor = aux_factor
+        self.use_aux = use_aux
 
 
         # self.class_weight = {0: 0.8373, 1: 0.918, 2: 0.866, 3: 1.0345,
@@ -156,6 +158,31 @@ class Seg_loss:
         # total_loss = ce_loss * self.aux_factor
 
         return ce_loss
+
+    def sigmoid_loss(self, y_true, y_pred):
+        y_true += 1
+
+        labels = tf.cast(y_true, tf.float32)
+        grad_components = tf.image.sobel_edges(labels)
+
+        grad_mag_components = grad_components ** 2
+
+        grad_mag_square = tf.math.reduce_sum(grad_mag_components, axis=-1)
+
+        y_true = tf.sqrt(grad_mag_square)
+
+        y_true = tf.clip_by_value(y_true, 0, 1)
+
+        sig_loss = tf.keras.losses.BinaryCrossentropy(from_logits=True,
+                                           reduction=tf.keras.losses.Reduction.NONE)(y_true=y_true,
+                                                                                     y_pred=y_pred)
+
+        min_loss = tfp.stats.percentile(sig_loss, 80, interpolation='midpoint')
+        sig_loss = tf.boolean_mask(sig_loss, sig_loss > min_loss)
+        sig_loss *= self.aux_factor
+
+        return sig_loss
+
 
     def focal_loss(self, y_true, y_pred):
         y_true = tf.squeeze(y_true, axis=3)

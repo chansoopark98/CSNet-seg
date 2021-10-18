@@ -67,32 +67,20 @@ class CityScapes:
         img = sample['image_left']
         labels = sample['segmentation_label']
 
-        # scale = tf.random.uniform([], 0.5, 2.0)
-        # new_h = 1024 * scale
-        # new_w = 2048 * scale
-        # img = tf.cast(tf.image.resize(img, size=(new_h, new_w),
-        #                 method=tf.image.ResizeMethod.BILINEAR), tf.int32)
-        # labels = tf.cast(tf.image.resize(labels, size=(new_h, new_w),
-        #                 method=tf.image.ResizeMethod.NEAREST_NEIGHBOR), tf.int32)
-        #
-        #
-        # concat_img = tf.concat([img, labels], axis=-1)
-        # concat_img = tf.image.random_crop(concat_img, [self.image_size[0], self.image_size[1], 4])
-        #
-        # img = concat_img[:, :, :3]
-        # labels = concat_img[:, :, 3:]
-        # labels -= 1
-        # img = tf.cast(img, tf.float32)
-        # img = tf.expand_dims(img, 0)
-        labels = tf.cast(labels, tf.float32)
-        labels = tf.expand_dims(labels, axis=0)
-        grad_components = tf.image.sobel_edges(labels)
+        gt = tf.cast(labels, tf.float32)
+        gt = tf.expand_dims(gt, axis=0)
+        grad_components = tf.image.sobel_edges(gt)
 
         grad_mag_components = grad_components ** 2
 
         grad_mag_square = tf.math.reduce_sum(grad_mag_components, axis=-1)
 
-        labels = tf.sqrt(grad_mag_square)
+        gt = tf.sqrt(grad_mag_square)
+
+        mask = tf.cast(tf.where(gt != 0, 0.0, 1), tf.uint8)
+
+
+        labels *= mask
 
 
 

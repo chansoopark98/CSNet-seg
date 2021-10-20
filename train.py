@@ -22,7 +22,7 @@ import tensorflow_addons as tfa
 tf.keras.backend.clear_session()
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=8)
+parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=12)
 parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=120)
 parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.001)
 parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.0005)
@@ -121,19 +121,19 @@ if DISTRIBUTION_MODE:
         mIoU = MIoU(20)
         edge_acc = EdgeAccuracy()
         loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1)
-        # aux_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.2) # original factor =0.2
-        aspp_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.4) #  original factor =0.5
-        skip_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.9) #  original factor =0.5
+        aux_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.2) # original factor =0.2
+        aspp_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.5) #  original factor =0.5
 
         edge_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1) #  original factor =0.5
-        body_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1) #  original factor =0.5
+
 
         model = seg_model_build(image_size=IMAGE_SIZE, mode='seg', augment=True, weight_decay=WEIGHT_DECAY,
                                 optimizer=OPTIMIZER_TYPE)
 
         losses = {'output': loss.ce_loss,
+                  'edge': edge_loss.sigmoid_loss,
                   'aspp': aspp_loss.ce_loss,
-                  'skip': skip_loss.ce_loss
+                  'eff': aux_loss.ce_loss
                   }
 
         model.compile(

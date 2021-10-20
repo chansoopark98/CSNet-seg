@@ -189,7 +189,7 @@ def proposed(features, fpn_times=2, activation='swish', fpn_channels=64, mode='f
     return x, aspp_aux, skip_aux
 
 def proposed_experiments(features, activation='swish'):
-    skip1, x, c1 = features # c1 48 / c2 64
+    skip1, x = features # c1 48 / c2 64
 
     # Image Feature branch
     shape_before = tf.shape(x)
@@ -238,72 +238,62 @@ def proposed_experiments(features, activation='swish'):
 
     x = Dropout(0.1)(x)
 
-    aspp_out = x
-
     # x to 128x256 size
     skip_size = tf.keras.backend.int_shape(skip1)
     x = tf.keras.layers.experimental.preprocessing.Resizing(
         *skip_size[1:3], interpolation="bilinear"
     )(x)
 
-    dec_skip1 = Conv2D(48, (1, 1), padding='same',
-                       kernel_regularizer=DECAY,
-                       use_bias=False, name='feature_projection0')(skip1)
-    # dec_skip1 = BatchNormalization(
-    #     name='feature_projection0_BN', epsilon=EPSILON)(dec_skip1)
-    dec_skip1 = BN(
-        name='feature_projection0_BN', epsilon=EPSILON)(dec_skip1)
-    dec_skip1 = Activation(activation)(dec_skip1)
+    aspp_aux = x
+
+    dec_skip1, edge = edge_creater(skip_x=skip1, epsilon=EPSILON, activation=activation)
 
     x = Concatenate()([x, dec_skip1])
-    x = Conv2D(256, (1, 1), padding='same',
-               kernel_regularizer=DECAY,
-               use_bias=False)(x)
-    # x = BatchNormalization(name='concat_projection_BN', epsilon=EPSILON)(x)
-    x = BN(epsilon=EPSILON)(x)
-    x = Activation(activation)(x)
 
     x = conv3x3(x, 256, 'decoder_conv0', epsilon=EPSILON, activation=activation)
     x = conv3x3(x, 256, 'decoder_conv1', epsilon=EPSILON, activation=activation)
 
-    x = UpSampling2D((2, 2))(x) # 128x256 to 256x512
-    x = conv3x3(x, 256, 'decoder_conv2', epsilon=EPSILON, activation=activation)
 
-    edge = edge_creater(c1, aspp_out, epsilon=EPSILON, activation=activation)
-
-    x = edge_guide(x, edge, epsilon=EPSILON, activation=activation)
+    return x, edge, aspp_aux
 
 
-    return x, edge
+def edge_creater(skip_x, epsilon=1e-3, activation='relu'):
+
+    # point-wise conv
+    edge_x = Conv2D(48, (1, 1), padding='same',
+               kernel_regularizer=DECAY,
+               use_bias=False)(skip_x)
+    edge_x = BN(epsilon=epsilon)(edge_x)
+    edge_x = Activation(activation)(edge_x)
+
+    # depth-wise conv
+    edge_x = DepthwiseConv2D((3, 3), strides=(1, 1), dilation_rate=(1, 1),
+                        kernel_regularizer=DECAY,
+                        padding='same', use_bias=False)(edge_x)
+
+    edge_x = BN(epsilon=epsilon)(edge_x)
+
+    # point-wise conv
+    edge_x = Conv2D(1, (1, 1), padding='same',
+               kernel_regularizer=DECAY,
+               use_bias=False)(edge_x)
+    edge_x = BN(epsilon=epsilon)(edge_x)
+    edge_x = Activation('sigmoid')(edge_x)
+
+    edge_map = multiply([skip_x, edge_x])
+
+    skip_x = Concatenate()([skip_x, edge_map])
+
+    skip_x = Conv2D(48, (1, 1), padding='same',
+               kernel_regularizer=DECAY,
+               use_bias=False)(skip_x)
+    skip_x = BN(epsilon=epsilon)(skip_x)
+    skip_x = Activation(activation)(skip_x)
 
 
-def edge_creater(x, aspp_out, epsilon=1e-3, activation='relu'):
-    """
-    :param x: 256x512 feature
-    :param aspp_out: 32x64 aspp output
-    :return: edge feature 256x512@1
-    """
 
-    aspp_up = UpSampling2D((8, 8))(aspp_out)
-    aspp_up = Conv2D(24, 1, strides=1, padding='same', use_bias=False)(aspp_up)
-    aspp_up = BN(epsilon=epsilon)(aspp_up)
-    aspp_up = Activation(activation)(aspp_up)
 
-    x = Conv2D(24, 3, 1, padding='same', use_bias=False)(x)
-    x = BN(epsilon=epsilon)(x)
-    x = Activation(activation)(x)
-
-    edge = Subtract()([x, aspp_up])
-
-    edge = Conv2D(24, 3, 1, padding='same', use_bias=False, dilation_rate=(2, 2))(edge)
-    edge = BN(epsilon=epsilon)(edge)
-    edge = Activation(activation)(edge)
-
-    edge = Conv2D(1, 1, 1, padding='same', use_bias=False)(edge)
-    edge = BN(epsilon=epsilon)(edge)
-    edge = Activation('sigmoid')(edge)
-
-    return edge
+    return skip_x, edge_x
 
 def edge_guide(x, edge, epsilon=1e-3, activation='relu'):
     input_x = x

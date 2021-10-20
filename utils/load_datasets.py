@@ -159,7 +159,6 @@ class CityScapes:
 
         # img = img / 255.0
         # img -= [0.485, 0.456, 0.406] # imageNet mean
-        # img /= [0.229, 0.224, 0.225] # imageNet std
 
         # if self.model_name == 'ddrnet':
         # img = imgNetNorm(img)

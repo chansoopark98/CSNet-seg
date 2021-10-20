@@ -1,5 +1,7 @@
 import tensorflow as tf
 import tensorflow_probability as tfp
+import tensorflow.keras.backend as K
+
 import itertools
 from typing import Any, Optional
 _EPSILON = tf.keras.backend.epsilon()
@@ -197,26 +199,20 @@ class Seg_loss:
 
 
     def sigmoid_loss(self, y_true, y_pred):
-        y_true += 1
+        edge_y_true = y_true
+        edge_y_true = tf.cast(edge_y_true, tf.float32)
 
-        labels = tf.cast(y_true, tf.float32)
-        grad_components = tf.image.sobel_edges(labels)
-
+        grad_components = tf.image.sobel_edges(edge_y_true)
         grad_mag_components = grad_components ** 2
-
         grad_mag_square = tf.math.reduce_sum(grad_mag_components, axis=-1)
 
-        y_true = tf.sqrt(grad_mag_square)
+        edge_y_true = tf.sqrt(grad_mag_square)
 
-        y_true = tf.clip_by_value(y_true, 0, 1)
+        edge_y_true = tf.clip_by_value(edge_y_true, 0, 1)
 
-        sig_loss = tf.keras.losses.BinaryCrossentropy(from_logits=True,
-                                           reduction=tf.keras.losses.Reduction.NONE)(y_true=y_true,
+        sig_loss = tf.keras.losses.BinaryCrossentropy(from_logits=False,
+                                           reduction=tf.keras.losses.Reduction.NONE)(y_true=edge_y_true,
                                                                                      y_pred=y_pred)
-
-        min_loss = tfp.stats.percentile(sig_loss, 80, interpolation='midpoint')
-        sig_loss = tf.boolean_mask(sig_loss, sig_loss > min_loss)
-        sig_loss *= self.aux_factor
 
         return sig_loss
 

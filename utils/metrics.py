@@ -44,3 +44,19 @@ class MIoU(tf.keras.metrics.MeanIoU):
 
 
         return super().update_state(y_true, y_pred, sample_weight)
+
+
+class EdgeAccuracy(tf.keras.metrics.BinaryAccuracy):
+    def update_state(self, y_true, y_pred, sample_weight=None):
+        edge_y_true = y_true
+        edge_y_true = tf.cast(edge_y_true, tf.float32)
+
+        grad_components = tf.image.sobel_edges(edge_y_true)
+        grad_mag_components = grad_components ** 2
+        grad_mag_square = tf.math.reduce_sum(grad_mag_components, axis=-1)
+
+        edge_y_true = tf.sqrt(grad_mag_square)
+
+        edge_y_true = tf.clip_by_value(edge_y_true, 0, 1)
+
+        return super().update_state(edge_y_true, y_pred, sample_weight)

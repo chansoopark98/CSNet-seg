@@ -67,46 +67,70 @@ class CityScapes:
         img = sample['image_left']
         labels = sample['segmentation_label']-1
 
-        gt = tf.cast(labels, tf.float32)
-        gt = tf.expand_dims(gt, axis=0)
-        grad_components = tf.image.sobel_edges(gt)
+        # gt = tf.cast(labels, tf.float32)
+        # gt = tf.expand_dims(gt, axis=0)
+        # grad_components = tf.image.sobel_edges(gt)
+        #
+        # grad_mag_components = grad_components ** 2
+        #
+        # grad_mag_square = tf.math.reduce_sum(grad_mag_components, axis=-1)
+        #
+        # gt = tf.sqrt(grad_mag_square)
+        #
+        # mask = tf.cast(tf.where(gt != 0, 0.0, 1), tf.uint8)
+        # labels *= mask
+
+        y_true = labels
+        y_true += 1
+
+        labels = tf.cast(y_true, tf.float32)
+        labels = tf.expand_dims(labels, 0)
+        grad_components = tf.image.sobel_edges(labels)
 
         grad_mag_components = grad_components ** 2
 
         grad_mag_square = tf.math.reduce_sum(grad_mag_components, axis=-1)
 
-        gt = tf.sqrt(grad_mag_square)
+        y_true = tf.sqrt(grad_mag_square)
 
-        mask = tf.cast(tf.where(gt != 0, 0.0, 1), tf.uint8)
-
-
-        labels *= mask
+        y_true = tf.clip_by_value(y_true, 0, 1)
 
 
-
-        return (img, labels)
+        return (img, y_true)
 
     @tf.function
     def preprocess_valid(self, sample):
         img = sample['image_left']
-        labels = sample['segmentation_label']
+        labels = sample['segmentation_label']-1
 
-
-        concat_img = tf.concat([img, labels], axis=-1)
-        concat_img = tf.image.random_crop(concat_img, (self.image_size[0], self.image_size[1], 4))
-
-        img = concat_img[:, :, :3]
-        labels = concat_img[:, :, 3:]
+        # gt = tf.cast(labels, tf.float32)
+        # gt = tf.expand_dims(gt, axis=0)
+        # grad_components = tf.image.sobel_edges(gt)
         #
-        # img = tf.image.resize(img, (512, 1024), method=tf.image.ResizeMethod.BILINEAR)
-        # labels = tf.image.resize(labels, (512, 1024), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+        # grad_mag_components = grad_components ** 2
+        #
+        # grad_mag_square = tf.math.reduce_sum(grad_mag_components, axis=-1)
+        #
+        # gt = tf.sqrt(grad_mag_square)
+        #
+        # mask = tf.cast(tf.where(gt != 0, 0.0, 1), tf.uint8)
+        # labels *= mask
 
-        img = tf.cast(img, dtype=tf.float32)
-        labels = tf.cast(labels, dtype=tf.int64)
+        y_true = labels
 
-        img = preprocess_input(img, mode='torch')
+        labels = tf.cast(y_true, tf.float32)
+        labels = tf.expand_dims(labels, 0)
+        grad_components = tf.image.sobel_edges(labels)
 
-        return (img, labels)
+        grad_mag_components = grad_components ** 2
+
+        grad_mag_square = tf.math.reduce_sum(grad_mag_components, axis=-1)
+
+        y_true = tf.sqrt(grad_mag_square)
+
+        y_true = tf.clip_by_value(y_true, -1, 1)
+
+        return (img, y_true)
 
 
 
@@ -133,7 +157,6 @@ class CityScapes:
 
     def get_validData(self, valid_data):
         valid_data = valid_data.map(self.preprocess_valid, num_parallel_calls=AUTO)
-        valid_data = valid_data.padded_batch(self.batch_size).prefetch(AUTO)
         return valid_data
 
     def get_testData(self, valid_data):
@@ -173,8 +196,8 @@ if __name__ == '__main__':
     MIXED_PRECISION = args.mixed_precision
     DISTRIBUTION_MODE = args.distribution_mode
 
-    train_dataset_config = CityScapes(DATASET_DIR, IMAGE_SIZE, BATCH_SIZE, mode='train')
-    train_data = train_dataset_config.get_trainData(train_dataset_config.train_data)
+    train_dataset_config = CityScapes(DATASET_DIR, IMAGE_SIZE, BATCH_SIZE, mode='validation')
+    train_data = train_dataset_config.get_validData(train_dataset_config.valid_data)
 
     import matplotlib.pyplot as plt
 

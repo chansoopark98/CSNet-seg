@@ -4,7 +4,7 @@ from tensorflow.keras.mixed_precision import experimental as mixed_precision
 from model.model_builder import seg_model_build
 from utils.callbacks import Scalar_LR
 from utils.load_datasets import CityScapes
-from utils.metrics import MeanIOU, MIoU
+from utils.metrics import MeanIOU, MIoU, EdgeAccuracy
 # from model.model_builder import seg_model_build
 from model.loss import Seg_loss
 import argparse
@@ -119,10 +119,11 @@ if DISTRIBUTION_MODE:
 
         # mIoU = MeanIOU(19)
         mIoU = MIoU(20)
+        edge_acc = EdgeAccuracy()
         loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1)
-        aux_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.2) # original factor =0.2
-        # aspp_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.4) #  original factor =0.5
-        # skip_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.9) #  original factor =0.5
+        # aux_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.2) # original factor =0.2
+        aspp_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.4) #  original factor =0.5
+        skip_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.9) #  original factor =0.5
 
         edge_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1) #  original factor =0.5
         body_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1) #  original factor =0.5
@@ -131,16 +132,14 @@ if DISTRIBUTION_MODE:
                                 optimizer=OPTIMIZER_TYPE)
 
         losses = {'output': loss.ce_loss,
-                  'edge': edge_loss.sigmoid_loss,
-                  'eff': aux_loss.ce_loss,
-                  'body': body_loss.body_loss
-
+                  'aspp': aspp_loss.ce_loss,
+                  'skip': skip_loss.ce_loss
                   }
 
         model.compile(
             optimizer=optimizer,
             loss=losses,
-            metrics=[mIoU])
+            metrics={'output': mIoU})
 
         if LOAD_WEIGHT:
             weight_name = '_1002_best_miou'

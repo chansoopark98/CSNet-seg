@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 from tensorflow.keras.mixed_precision import experimental as mixed_precision
 # from ddrnet_23_slim.model.model_builder import seg_model_build
 from model.model_builder import seg_model_build
@@ -63,7 +64,7 @@ test_steps = dataset.number_valid // BATCH_SIZE
 test_set = dataset.get_testData(dataset.valid_data)
 
 model = seg_model_build(image_size=IMAGE_SIZE, mode='seg', augment=True, weight_decay=WEIGHT_DECAY, num_classes=19)
-weight_name = '_1018_best_miou'
+weight_name = '_1019_best_miou'
 # weight_name = '_1012_final_loss'
 model.load_weights(CHECKPOINT_DIR + weight_name + '.h5',by_name=True)
 model.summary()
@@ -100,9 +101,25 @@ save_path = './checkpoints/results/'+SAVE_MODEL_NAME+'/'
 os.makedirs(save_path, exist_ok=True)
 for x, y in tqdm(test_set, total=test_steps):
     pred = model.predict_on_batch(x)#pred = tf.nn.softmax(pred)
-    pred = pred[0]
 
+
+    #
+    # arg_pred = tf.math.argmax(pred[1], axis=-1)
+    # arg_pred = tf.nn.sigmoid(pred[1])
+    # plt.imshow(arg_pred[0])
+    # plt.show()
+    #
+    # arg_pred = tf.math.argmax(pred[2], axis=-1)
+    # plt.imshow(arg_pred[0])
+    # plt.show()
+    #
+    # arg_pred = tf.math.argmax(pred[3], axis=-1)
+    # plt.imshow(arg_pred[0])
+    # plt.show()
+
+    pred = pred[0]
     arg_pred = tf.math.argmax(pred, axis=-1)
+
 
     for i in range(len(arg_pred)):
         metric.update_state(y[i], arg_pred[i])

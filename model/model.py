@@ -29,16 +29,16 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
     model_input = base.input
     # model_output, aspp_aux = deepLabV3Plus(features=features, fpn_times=2, activation='swish', mode='deeplabv3+')
     # model_output, aspp_aux, skip_aux = proposed(features=features, fpn_times=2, activation='relu', mode='deeplabv3+')
-    decoder_output, edge_output, aspp_output = proposed_experiments(features=features, activation='relu')
+    decoder_output, edge_output, aspp_aux = proposed_experiments(features=features, activation='swish')
     """
     model_output: 128x256
     aspp_aux: 64x128
     dec_aux: 128x256"""
 
     total_cls = classifier(decoder_output, num_classes=classes, upper=4, name='output')
-    edge_cls = edge_classifier(edge_output, upper=4, name='edge')
+    edge_cls = classifier(edge_output, upper=4, name='edge')
     # body_cls = classifier(body_output, num_classes=classes, upper=4, name='body')
-    aspp_aux_output = classifier(aspp_output, num_classes=classes, upper=4, name='aspp')
+    aspp_aux_output = classifier(aspp_aux, num_classes=classes, upper=4, name='aspp')
     eff_aux_output = classifier(c3, num_classes=classes, upper=8, name='eff')
 
     """
@@ -56,7 +56,27 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
     Epochs: 120
     """
 
-    model_output = [total_cls, edge_cls, aspp_aux_output, eff_aux_output]
+    """
+    Edge guide base experiments
+    
+        Backbone : EfficientNetV2S 
+        strides : [1, 2, 2, 2, 1, 1]
+    
+    Decoder : DeepLabV3+
+    Aux : 
+        EfficientV2S backbone get_layer('add_7') 64x128 (8배 업스케일링) loss factor = 0.2
+        Edge loss factor = 1
+        apss_aux = 0.4
+    Learning rate 0.001
+    Weight Decay = l2 (0.0001)/2
+    Optimizer : Adam
+    Epochs: 120
+    Activation : Swish
+    skip connection channel : 48
+    79.75%
+    """
+
+    model_output = [total_cls, edge_cls, eff_aux_output, aspp_aux_output]
 
     return model_input, model_output
 
@@ -69,5 +89,8 @@ def classifier(x, num_classes=19, upper=4, name=None):
     return x
 
 def edge_classifier(x, upper=2, name=None):
+    x = layers.Conv2D(1, 1, strides=1,
+                      kernel_regularizer=DECAY,
+                      kernel_initializer=CONV_KERNEL_INITIALIZER)(x)
     x = layers.UpSampling2D(size=(upper, upper), interpolation='bilinear', name=name)(x)
     return x

@@ -91,9 +91,13 @@ class CityScapes:
 
         grad_mag_square = tf.math.reduce_sum(grad_mag_components, axis=-1)
 
-        y_true = tf.sqrt(grad_mag_square)
+        mask = tf.sqrt(grad_mag_square)
 
-        y_true = tf.clip_by_value(y_true, 0, 1)
+        mask = tf.cast(mask, tf.uint8)
+
+        y_true *= mask
+
+
 
 
         return (img, y_true)
@@ -115,7 +119,7 @@ class CityScapes:
         #
         # mask = tf.cast(tf.where(gt != 0, 0.0, 1), tf.uint8)
         # labels *= mask
-
+        original_y_true = labels
         y_true = labels
 
         labels = tf.cast(y_true, tf.float32)
@@ -126,11 +130,13 @@ class CityScapes:
 
         grad_mag_square = tf.math.reduce_sum(grad_mag_components, axis=-1)
 
-        y_true = tf.sqrt(grad_mag_square)
+        mask = tf.sqrt(grad_mag_square)
 
-        y_true = tf.clip_by_value(y_true, -1, 1)
+        mask = tf.cast(mask, tf.uint8)
+        mask = tf.clip_by_value(mask, 0, 1)
+        y_true *= mask
 
-        return (img, y_true)
+        return (original_y_true, y_true)
 
 
 
@@ -211,4 +217,7 @@ if __name__ == '__main__':
         # plt.show()
 
         plt.imshow(y[0])
+        plt.show()
+
+        plt.imshow(x)
         plt.show()

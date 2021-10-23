@@ -112,11 +112,11 @@ class CityScapes:
         # img = concat_img[:, :, :3]
         # labels = concat_img[:, :, 3:]
 
-        img = tf.image.central_crop(img, 0.5)
-        labels = tf.image.central_crop(labels, 0.5)
+        # img = tf.image.central_crop(img, 0.5)
+        # labels = tf.image.central_crop(labels, 0.5)
 
-        # img = tf.image.resize(img, (self.image_size[0], self.image_size[1]), method=tf.image.ResizeMethod.BILINEAR)
-        # labels = tf.image.resize(labels, (self.image_size[0], self.image_size[1]), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+        img = tf.image.resize(img, (self.image_size[0], self.image_size[1]), method=tf.image.ResizeMethod.BILINEAR)
+        labels = tf.image.resize(labels, (self.image_size[0], self.image_size[1]), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
 
         img = tf.cast(img, dtype=tf.float32)
         labels = tf.cast(labels, dtype=tf.int64)

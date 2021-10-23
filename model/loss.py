@@ -1,6 +1,7 @@
 import tensorflow as tf
 import tensorflow_probability as tfp
 import tensorflow.keras.backend as K
+import numpy as np
 
 import itertools
 from typing import Any, Optional
@@ -132,7 +133,6 @@ class Seg_loss:
         self.cls_weight = tf.constant(self.class_weight, tf.float32)
 
 
-
     def ce_loss(self, y_true, y_pred):
         y_true = tf.squeeze(y_true, axis=3)
         y_true = tf.reshape(y_true, [-1,])
@@ -141,6 +141,7 @@ class Seg_loss:
         indices = tf.squeeze(tf.where(tf.less_equal(y_true, self.num_classes-1)), 1)
         gt = tf.cast(tf.gather(y_true, indices), tf.int32)
         prediction = tf.gather(raw_prediction, indices)
+
 
         if self.distribute_mode:
             ce_loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True,
@@ -172,7 +173,7 @@ class Seg_loss:
 
         gt = tf.sqrt(grad_mag_square)
 
-        mask = tf.cast(tf.where(gt != 0, 0.0, 1), tf.int64)
+        mask = tf.cast(tf.where(gt != 0, 0, 1), tf.int64)
         y_true = tf.cast(y_true, tf.int64)
         y_true *= mask
 
@@ -210,12 +211,45 @@ class Seg_loss:
 
         edge_y_true = tf.clip_by_value(edge_y_true, 0, 1)
 
-        sig_loss = tf.keras.losses.BinaryCrossentropy(from_logits=False,
+        sig_loss = tf.keras.losses.BinaryCrossentropy(from_logits=True,
                                            reduction=tf.keras.losses.Reduction.NONE)(y_true=edge_y_true,
                                                                                      y_pred=y_pred)
 
+        # min_loss = tfp.stats.percentile(sig_loss, 80, interpolation='midpoint')
+        # sig_loss = tf.boolean_mask(sig_loss, sig_loss > min_loss)
+
         return sig_loss
 
+
+    def edge_loss(self, y_true, y_pred):
+        labels = tf.cast(y_true, tf.float32)
+        grad_components = tf.image.sobel_edges(labels)
+        grad_mag_components = grad_components ** 2
+        grad_mag_square = tf.math.reduce_sum(grad_mag_components, axis=-1)
+        mask = tf.sqrt(grad_mag_square)
+        mask = tf.cast(mask, tf.int64)
+        mask = tf.clip_by_value(mask, 0, 1)
+        y_true *= mask
+
+        y_true = tf.squeeze(y_true, axis=3)
+        y_true = tf.reshape(y_true, [-1,])
+        # todo
+        raw_prediction = tf.reshape(y_pred, [-1, self.num_classes])
+        indices = tf.squeeze(tf.where(tf.less_equal(y_true, self.num_classes-1)), 1)
+        gt = tf.cast(tf.gather(y_true, indices), tf.int32)
+        prediction = tf.gather(raw_prediction, indices)
+
+
+
+        edge_loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True,
+                                                            reduction=tf.keras.losses.Reduction.NONE)(y_true=gt,
+                                                                                                      y_pred=prediction)
+
+
+        weights = tf.gather(self.cls_weight, gt)
+        edge_loss = (edge_loss * weights) * self.aux_factor
+
+        return edge_loss
 
     def focal_loss(self, y_true, y_pred):
         y_true = tf.squeeze(y_true, axis=3)

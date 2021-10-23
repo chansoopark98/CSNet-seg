@@ -1,18 +1,15 @@
 from tensorflow.keras.callbacks import ReduceLROnPlateau, ModelCheckpoint
 from tensorflow.keras.mixed_precision import experimental as mixed_precision
-# from ddrnet_23_slim.model.model_builder import seg_model_build
 from model.model_builder import seg_model_build
 from utils.callbacks import Scalar_LR
 from utils.load_datasets import CityScapes
-from utils.metrics import MeanIOU, MIoU, EdgeAccuracy
-# from model.model_builder import seg_model_build
+from utils.metrics import MIoU, EdgeMIoU
 from model.loss import Seg_loss
 import argparse
 import time
 import os
 import tensorflow as tf
 from utils.get_flops import get_flops
-import tensorflow_addons as tfa
 # from utils.cityscape_colormap import class_weight
 # from utils.adamW import LearningRateScheduler, poly_decay
 # import tensorflow_addons
@@ -22,7 +19,7 @@ import tensorflow_addons as tfa
 tf.keras.backend.clear_session()
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=12)
+parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=16)
 parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=120)
 parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.001)
 parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.0005)
@@ -119,27 +116,31 @@ if DISTRIBUTION_MODE:
 
         # mIoU = MeanIOU(19)
         mIoU = MIoU(20)
-        edge_acc = EdgeAccuracy()
+        body_mIoU = MIoU(20)
+        edge_mIoU = EdgeMIoU(20)
         loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1)
         aux_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.2) # original factor =0.2
-        aspp_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.5) #  original factor =0.5
+        aspp_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.4) #  original factor =0.5
 
         edge_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1) #  original factor =0.5
+        body_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1) #  original factor =0.5
 
 
         model = seg_model_build(image_size=IMAGE_SIZE, mode='seg', augment=True, weight_decay=WEIGHT_DECAY,
                                 optimizer=OPTIMIZER_TYPE)
 
         losses = {'output': loss.ce_loss,
-                  'edge': edge_loss.sigmoid_loss,
+                  'edge': edge_loss.edge_loss,
+                  # 'body': body_loss.body_loss,
                   'aspp': aspp_loss.ce_loss,
                   'eff': aux_loss.ce_loss
+
                   }
 
         model.compile(
             optimizer=optimizer,
             loss=losses,
-            metrics={'output': mIoU})
+            metrics={'output': mIoU, 'aspp': body_mIoU, 'edge':edge_mIoU})
 
         if LOAD_WEIGHT:
             weight_name = '_1002_best_miou'

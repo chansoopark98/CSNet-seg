@@ -43,9 +43,10 @@ class MIoU(tf.keras.metrics.MeanIoU):
         zeros_y_pred *= indices
 
 
-        return super().update_state(y_true, y_pred, sample_weight)
+        return super().update_state(y_true, zeros_y_pred, sample_weight)
 
 
+# For BinaryCrossEntropy
 class EdgeAccuracy(tf.keras.metrics.BinaryAccuracy):
     def update_state(self, y_true, y_pred, sample_weight=None):
         edge_y_true = y_true
@@ -60,3 +61,33 @@ class EdgeAccuracy(tf.keras.metrics.BinaryAccuracy):
         edge_y_true = tf.clip_by_value(edge_y_true, 0, 1)
 
         return super().update_state(edge_y_true, y_pred, sample_weight)
+
+# For SparseCatecoricalCrossEntropy
+class EdgeMIoU(tf.keras.metrics.MeanIoU):
+    def update_state(self, y_true, y_pred, sample_weight=None):
+        labels = tf.cast(y_true, tf.float32)
+        grad_components = tf.image.sobel_edges(labels)
+        grad_mag_components = grad_components ** 2
+        grad_mag_square = tf.math.reduce_sum(grad_mag_components, axis=-1)
+        mask = tf.sqrt(grad_mag_square)
+        mask = tf.cast(mask, tf.int64)
+        mask = tf.clip_by_value(mask, 0, 1)
+        y_true *= mask
+
+        y_true = tf.squeeze(y_true, axis=-1)
+        y_true += 1
+        y_true_mask = tf.where(tf.greater(y_true, 21), 0, 1)
+        y_true_mask = tf.cast(y_true_mask, tf.int64)
+        y_true = y_true * y_true_mask
+        y_pred = tf.math.argmax(y_pred, axis=-1)
+        y_pred += 1
+
+        zeros_y_pred = tf.zeros(tf.shape(y_pred), tf.int64)
+        zeros_y_pred += y_pred
+        indices = tf.cast(tf.where(tf.equal(y_true, 0), 0, 1), tf.int64)
+
+        y_true *= indices
+        zeros_y_pred *= indices
+
+
+        return super().update_state(y_true, zeros_y_pred, sample_weight)

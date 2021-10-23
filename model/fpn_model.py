@@ -245,68 +245,50 @@ def proposed_experiments(features, activation='swish'):
     )(x)
 
     aspp_aux = x
+    dec_skip1 = Conv2D(48, (1, 1), padding='same',
+                       kernel_regularizer=DECAY,
+                       use_bias=False, name='feature_projection0')(skip1)
+    # dec_skip1 = BatchNormalization(
+    #     name='feature_projection0_BN', epsilon=EPSILON)(dec_skip1)
+    dec_skip1 = BN(
+        name='feature_projection0_BN', epsilon=EPSILON)(dec_skip1)
+    dec_skip1 = Activation(activation)(dec_skip1)
 
-    dec_skip1, edge = edge_creater(skip_x=skip1, epsilon=EPSILON, activation=activation)
+    edge = edge_creater(skip_x=skip1, aspp_feature=x, epsilon=EPSILON, activation=activation)
 
-    x = Concatenate()([x, dec_skip1])
+    x = Concatenate()([x, dec_skip1, edge])
 
-    x = conv3x3(x, 256, 'decoder_conv0', epsilon=EPSILON, activation=activation)
     x = conv3x3(x, 256, 'decoder_conv1', epsilon=EPSILON, activation=activation)
-
+    x = conv3x3(x, 256, 'decoder_conv2', epsilon=EPSILON, activation=activation)
 
     return x, edge, aspp_aux
 
-
-def edge_creater(skip_x, epsilon=1e-3, activation='relu'):
-
-    # point-wise conv
-    edge_x = Conv2D(48, (1, 1), padding='same',
-               kernel_regularizer=DECAY,
-               use_bias=False)(skip_x)
-    edge_x = BN(epsilon=epsilon)(edge_x)
-    edge_x = Activation(activation)(edge_x)
-
-    # depth-wise conv
-    edge_x = DepthwiseConv2D((3, 3), strides=(1, 1), dilation_rate=(1, 1),
-                        kernel_regularizer=DECAY,
-                        padding='same', use_bias=False)(edge_x)
-
-    edge_x = BN(epsilon=epsilon)(edge_x)
-
-    # point-wise conv
-    edge_x = Conv2D(1, (1, 1), padding='same',
-               kernel_regularizer=DECAY,
-               use_bias=False)(edge_x)
-    edge_x = BN(epsilon=epsilon)(edge_x)
-    edge_x = Activation('sigmoid')(edge_x)
-
-    edge_map = multiply([skip_x, edge_x])
-
-    skip_x = Concatenate()([skip_x, edge_map])
-
-    skip_x = Conv2D(48, (1, 1), padding='same',
-               kernel_regularizer=DECAY,
-               use_bias=False)(skip_x)
-    skip_x = BN(epsilon=epsilon)(skip_x)
+def edge_creater(skip_x, aspp_feature, epsilon=1e-3, activation='relu'):
+    skip_x = Conv2D(24, kernel_size=1, strides=1, padding='same', use_bias=False)(skip_x)
+    skip_x = BN(epsilon=EPSILON)(skip_x)
     skip_x = Activation(activation)(skip_x)
 
+    aspp_feature = Conv2D(256, kernel_size=1, strides=1, padding='same', use_bias=False)(aspp_feature)
+    aspp_feature = BN(epsilon=EPSILON)(aspp_feature)
+    aspp_feature = Activation(activation)(aspp_feature)
+
+    aspp_feature = conv3x3(aspp_feature, 256, prefix='aspp_feature_128x', stride=1,
+            kernel_size=3, rate=1, epsilon=epsilon, activation=activation)
 
 
+    concat_feature = Concatenate()([skip_x, aspp_feature])
 
-    return skip_x, edge_x
+    concat_feature = Conv2D(256, kernel_size=1, strides=1, padding='same', use_bias=False)(concat_feature)
+    concat_feature = BN(epsilon=EPSILON)(concat_feature)
+    concat_feature = Activation(activation)(concat_feature)
 
-def edge_guide(x, edge, epsilon=1e-3, activation='relu'):
-    input_x = x
+    edge = Subtract()([concat_feature, aspp_feature])
 
-    x = multiply([x, edge])
+    edge = Conv2D(24, kernel_size=1, strides=1, padding='same', use_bias=False)(edge)
+    edge = BN(epsilon=EPSILON)(edge)
+    edge = Activation(activation)(edge)
 
-    x = Concatenate()([x, input_x])
-
-    x = Conv2D(256, 1, 1, padding='same', use_bias=False)(x)
-    x = BN(epsilon=epsilon)(x)
-    x = Activation(activation)(x)
-
-    return x
+    return edge
 
 
 

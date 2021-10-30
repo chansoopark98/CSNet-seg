@@ -81,7 +81,7 @@ class CityScapes:
         # labels *= mask
 
         y_true = labels
-        y_true += 1
+        # y_true += 1
 
         labels = tf.cast(y_true, tf.float32)
         labels = tf.expand_dims(labels, 0)
@@ -93,50 +93,50 @@ class CityScapes:
 
         mask = tf.sqrt(grad_mag_square)
 
-        mask = tf.cast(mask, tf.uint8)
-
-        y_true *= mask
-
-
+        # mask = tf.cast(mask, tf.uint8)
+        #
+        # y_true *= mask
 
 
-        return (img, y_true)
+
+
+        return (img, mask)
 
     @tf.function
     def preprocess_valid(self, sample):
         img = sample['image_left']
-        labels = sample['segmentation_label']-1
+        y_true = sample['segmentation_label']-1
 
-        # gt = tf.cast(labels, tf.float32)
-        # gt = tf.expand_dims(gt, axis=0)
-        # grad_components = tf.image.sobel_edges(gt)
+        # y_true = tf.cast(y_true, tf.int32)
+        # orininal_y_true = y_true
+        #
+        # edge_label = tf.cast(y_true, tf.float32)
+        # edge_label = tf.expand_dims(edge_label, 0)
+        # grad_components = tf.image.sobel_edges(edge_label)
         #
         # grad_mag_components = grad_components ** 2
         #
         # grad_mag_square = tf.math.reduce_sum(grad_mag_components, axis=-1)
         #
-        # gt = tf.sqrt(grad_mag_square)
+        # mask = tf.sqrt(grad_mag_square)
         #
-        # mask = tf.cast(tf.where(gt != 0, 0.0, 1), tf.uint8)
-        # labels *= mask
-        original_y_true = labels
-        y_true = labels
+        # y_true = tf.where(mask == 0, y_true, 255)
 
-        labels = tf.cast(y_true, tf.float32)
-        labels = tf.expand_dims(labels, 0)
-        grad_components = tf.image.sobel_edges(labels)
-
+        ### edge teest
+        orininal_label = y_true
+        edge_y_true = tf.cast(y_true, tf.float32)
+        edge_y_true = tf.expand_dims(edge_y_true, 0)
+        grad_components = tf.image.sobel_edges(edge_y_true)
         grad_mag_components = grad_components ** 2
-
         grad_mag_square = tf.math.reduce_sum(grad_mag_components, axis=-1)
 
         mask = tf.sqrt(grad_mag_square)
+        ignore_mask = tf.where(y_true>19, 0, 1)
 
-        mask = tf.cast(mask, tf.uint8)
-        mask = tf.clip_by_value(mask, 0, 1)
-        y_true *= mask
+        y_true = tf.where(mask != 0, 1, 0)
+        ignore =y_true * ignore_mask
 
-        return (original_y_true, y_true)
+        return (y_true, ignore)
 
 
 
@@ -212,12 +212,8 @@ if __name__ == '__main__':
     stack = 0
     for id in train_data.take(2975):
         x, y = id
-
-        # plt.imshow(y[0])
-        # plt.show()
-
+        plt.imshow(x[0])
+        plt.show()
         plt.imshow(y[0])
         plt.show()
 
-        plt.imshow(x)
-        plt.show()

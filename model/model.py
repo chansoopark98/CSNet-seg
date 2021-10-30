@@ -15,7 +15,7 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
     c5 = base.get_layer('add_34').output  # 16x32 256 or get_layer('post_swish') => 확장된 채널 1280
     # c5 = base.get_layer('post_swish').output  # 32x64 256 or get_layer('post_swish') => 확장된 채널 1280
     # c4 = base.get_layer('add_20').output  # 32x64 64
-    c3 = base.get_layer('add_7').output  # 64x128 48
+    # c3 = base.get_layer('add_7').output  # 64x128 48
     # c2 = base.get_layer('add_6').output  # 128x256 48
     c2 = base.get_layer('add_4').output  # 128x256 48
     """
@@ -29,17 +29,17 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
     model_input = base.input
     # model_output, aspp_aux = deepLabV3Plus(features=features, fpn_times=2, activation='swish', mode='deeplabv3+')
     # model_output, aspp_aux, skip_aux = proposed(features=features, fpn_times=2, activation='relu', mode='deeplabv3+')
-    decoder_output, edge_output, aspp_aux = proposed_experiments(features=features, activation='swish')
+    decoder_output, edge, body, aspp_aux = proposed_experiments(features=features, activation='swish')
     """
     model_output: 128x256
     aspp_aux: 64x128
     dec_aux: 128x256"""
 
     total_cls = classifier(decoder_output, num_classes=classes, upper=4, name='output')
-    edge_cls = classifier(edge_output, upper=4, name='edge')
-    # body_cls = classifier(body_output, num_classes=classes, upper=4, name='body')
-    aspp_aux_output = classifier(aspp_aux, num_classes=classes, upper=4, name='aspp')
-    eff_aux_output = classifier(c3, num_classes=classes, upper=8, name='eff')
+    edge_cls = edge_classifier(edge, upper=4, name='edge')
+    body_cls = classifier(body, num_classes=classes, upper=4, name='body')
+    aspp_aux_cls = classifier(aspp_aux, num_classes=classes, upper=4, name='aspp')
+    # eff_aux_output = classifier(c3, num_classes=classes, upper=8, name='eff')
 
     """
     Best Method
@@ -76,7 +76,7 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
     79.75%
     """
 
-    model_output = [total_cls, edge_cls, eff_aux_output, aspp_aux_output]
+    model_output = [total_cls, edge_cls, body_cls, aspp_aux_cls]
 
     return model_input, model_output
 
@@ -88,9 +88,10 @@ def classifier(x, num_classes=19, upper=4, name=None):
     x = layers.UpSampling2D(size=(upper, upper), interpolation='bilinear', name=name)(x)
     return x
 
-def edge_classifier(x, upper=2, name=None):
+def edge_classifier(x, upper=4, name=None):
     x = layers.Conv2D(1, 1, strides=1,
                       kernel_regularizer=DECAY,
                       kernel_initializer=CONV_KERNEL_INITIALIZER)(x)
+    x = Activation('sigmoid')(x)
     x = layers.UpSampling2D(size=(upper, upper), interpolation='bilinear', name=name)(x)
     return x

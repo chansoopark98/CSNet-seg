@@ -163,20 +163,34 @@ class Seg_loss:
         return ce_loss
 
     def body_loss(self, y_true, y_pred):
-        gt = tf.cast(y_true, tf.float32)
+        # gt = tf.cast(y_true, tf.float32)
+        #
+        # grad_components = tf.image.sobel_edges(gt)
+        #
+        # grad_mag_components = grad_components ** 2
+        #
+        # grad_mag_square = tf.math.reduce_sum(grad_mag_components, axis=-1)
+        #
+        # gt = tf.sqrt(grad_mag_square)
+        #
+        # mask = tf.cast(tf.where(gt != 0, 0, 1), tf.int64)
+        # y_true = tf.cast(y_true, tf.int64)
+        # y_true *= mask
 
-        grad_components = tf.image.sobel_edges(gt)
+        # y_true += 1
+
+        edge_label = tf.cast(y_true, tf.float32)
+        grad_components = tf.image.sobel_edges(edge_label)
 
         grad_mag_components = grad_components ** 2
 
         grad_mag_square = tf.math.reduce_sum(grad_mag_components, axis=-1)
 
-        gt = tf.sqrt(grad_mag_square)
+        mask = tf.sqrt(grad_mag_square)
 
-        mask = tf.cast(tf.where(gt != 0, 0, 1), tf.int64)
-        y_true = tf.cast(y_true, tf.int64)
-        y_true *= mask
+        y_true = tf.where(mask == 0, y_true, 255)
 
+        """ ce """
         y_true = tf.squeeze(y_true, axis=3)
         y_true = tf.reshape(y_true, [-1, ])
         # todo
@@ -189,6 +203,9 @@ class Seg_loss:
                                                                 reduction=tf.keras.losses.Reduction.NONE)(y_true=gt,
                                                                                                           y_pred=prediction)
 
+        # weights = tf.gather(self.cls_weight, gt)
+        # ce_loss = (ce_loss * weights) * self.aux_factor
+
         # ce_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=gt, logits=prediction)
 
         # weights = tf.gather(self.cls_weight, gt)
@@ -200,19 +217,19 @@ class Seg_loss:
 
 
     def sigmoid_loss(self, y_true, y_pred):
-        edge_y_true = y_true
-        edge_y_true = tf.cast(edge_y_true, tf.float32)
-
-        grad_components = tf.image.sobel_edges(edge_y_true)
+        y_true = tf.cast(y_true, tf.float32)
+        grad_components = tf.image.sobel_edges(y_true)
         grad_mag_components = grad_components ** 2
         grad_mag_square = tf.math.reduce_sum(grad_mag_components, axis=-1)
 
-        edge_y_true = tf.sqrt(grad_mag_square)
+        mask = tf.sqrt(grad_mag_square)
+        ignore_mask = tf.where(y_true > 19, 0, 1)
 
-        edge_y_true = tf.clip_by_value(edge_y_true, 0, 1)
+        y_true = tf.where(mask != 0, 1, 0)
+        y_true *= ignore_mask
 
-        sig_loss = tf.keras.losses.BinaryCrossentropy(from_logits=True,
-                                           reduction=tf.keras.losses.Reduction.NONE)(y_true=edge_y_true,
+        sig_loss = tf.keras.losses.BinaryCrossentropy(from_logits=False,
+                                           reduction=tf.keras.losses.Reduction.NONE)(y_true=y_true,
                                                                                      y_pred=y_pred)
 
         # min_loss = tfp.stats.percentile(sig_loss, 80, interpolation='midpoint')
@@ -222,32 +239,36 @@ class Seg_loss:
 
 
     def edge_loss(self, y_true, y_pred):
+        # 에지 영역 계산
         labels = tf.cast(y_true, tf.float32)
+
         grad_components = tf.image.sobel_edges(labels)
         grad_mag_components = grad_components ** 2
         grad_mag_square = tf.math.reduce_sum(grad_mag_components, axis=-1)
         mask = tf.sqrt(grad_mag_square)
-        mask = tf.cast(mask, tf.int64)
+        # 에지 범위 지정 0 : 배경 1: 에지
         mask = tf.clip_by_value(mask, 0, 1)
-        y_true *= mask
+        mask = tf.cast(mask, tf.int64)
 
+        y_true = tf.where(mask == 0, tf.cast(256, tf.int64), y_true)
+        # y_true *= mask
+
+        # y_true = tf.where(y_true == 0, tf.cast(255, tf.int64), y_true-1) #y_true -1 ?
+
+        # Cross-entropy 계산
         y_true = tf.squeeze(y_true, axis=3)
-        y_true = tf.reshape(y_true, [-1,])
+        y_true = tf.reshape(y_true, [-1, ])
         # todo
         raw_prediction = tf.reshape(y_pred, [-1, self.num_classes])
-        indices = tf.squeeze(tf.where(tf.less_equal(y_true, self.num_classes-1)), 1)
+        indices = tf.squeeze(tf.where(tf.less_equal(y_true, self.num_classes - 1)), 1)
         gt = tf.cast(tf.gather(y_true, indices), tf.int32)
         prediction = tf.gather(raw_prediction, indices)
 
 
-
         edge_loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True,
-                                                            reduction=tf.keras.losses.Reduction.NONE)(y_true=gt,
-                                                                                                      y_pred=prediction)
+                                                                reduction=tf.keras.losses.Reduction.NONE)(y_true=gt,
+                                                                                                          y_pred=prediction)
 
-
-        weights = tf.gather(self.cls_weight, gt)
-        edge_loss = (edge_loss * weights) * self.aux_factor
 
         return edge_loss
 

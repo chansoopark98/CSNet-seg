@@ -120,7 +120,7 @@ if DISTRIBUTION_MODE:
         edge_mIoU = EdgeMIoU(20)
         loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1)
         aux_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.2) # original factor =0.2
-        aspp_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.4) #  original factor =0.5
+        aspp_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.8) #  original factor =0.5
 
         edge_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1) #  original factor =0.5
         body_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1) #  original factor =0.5
@@ -130,17 +130,17 @@ if DISTRIBUTION_MODE:
                                 optimizer=OPTIMIZER_TYPE)
 
         losses = {'output': loss.ce_loss,
-                  'edge': edge_loss.edge_loss,
-                  # 'body': body_loss.body_loss,
-                  'aspp': aspp_loss.ce_loss,
-                  'eff': aux_loss.ce_loss
+                  'edge': edge_loss.sigmoid_loss,
+                  'body': body_loss.body_loss,
+                  'aspp': aux_loss.ce_loss
 
                   }
 
         model.compile(
             optimizer=optimizer,
             loss=losses,
-            metrics={'output': mIoU, 'aspp': body_mIoU, 'edge':edge_mIoU})
+            metrics={'output': mIoU})
+                     # 'edge':edge_mIoU})
 
         if LOAD_WEIGHT:
             weight_name = '_1002_best_miou'

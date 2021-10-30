@@ -119,7 +119,7 @@ class CityScapes:
         labels = tf.image.resize(labels, (self.image_size[0], self.image_size[1]), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
 
         img = tf.cast(img, dtype=tf.float32)
-        labels = tf.cast(labels, dtype=tf.int64)
+        labels = tf.cast(labels, dtype=tf.int32)
 
         img = preprocess_input(img, mode='torch')
         # img = (img - self.mean) / self.std
@@ -147,7 +147,7 @@ class CityScapes:
             labels = tf.image.flip_left_right(labels)
 
         img = tf.cast(img, dtype=tf.float32)
-        labels = tf.cast(labels, dtype=tf.int64)
+        labels = tf.cast(labels, dtype=tf.int32)
 
         # if tf.random.uniform([]) > 0.5:
         #     img, labels = self.zoom(img, labels, 0.8, 1.2)

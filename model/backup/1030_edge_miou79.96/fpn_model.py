@@ -112,6 +112,82 @@ def deepLabV3Plus(features, fpn_times=2, activation='swish', fpn_channels=64, mo
 
     return x, aux_temp_aspp
 
+def proposed(features, fpn_times=2, activation='swish', fpn_channels=64, mode='fpn'):
+    skip1, x = features # c1 48 / c2 64
+
+    # Image Feature branch
+    shape_before = tf.shape(x)
+    b4 = GlobalAveragePooling2D()(x)
+    b4_shape = tf.keras.backend.int_shape(b4)
+    # from (b_size, channels)->(b_size, 1, 1, channels)
+    b4 = Reshape((1, 1, b4_shape[1]))(b4)
+    b4 = Conv2D(256, (1, 1), padding='same',
+                kernel_regularizer=DECAY,
+                use_bias=False, name='image_pooling')(b4)
+    # b4 = BatchNormalization(name='image_pooling_BN', epsilon=EPSILON)(b4)
+    b4 = BN(name='image_pooling_BN', epsilon=EPSILON)(b4)
+    b4 = Activation(activation)(b4)
+    # upsample. have to use compat because of the option align_corners
+    size_before = tf.keras.backend.int_shape(x)
+    b4 = tf.keras.layers.experimental.preprocessing.Resizing(
+            *size_before[1:3], interpolation="bilinear"
+        )(b4)
+
+    # b4 = UpSampling2D(size=(32, 64), interpolation="bilinear")(b4)
+    # simple 1x1
+    b0 = Conv2D(256, (1, 1), padding='same',
+                kernel_regularizer=DECAY,
+                use_bias=False, name='aspp0')(x)
+    # b0 = BatchNormalization(name='aspp0_BN', epsilon=EPSILON)(b0)
+    b0 = BN(name='aspp0_BN', epsilon=EPSILON)(b0)
+    b0 = Activation(activation, name='aspp0_activation')(b0)
+
+    b1 = conv3x3(x, 256, 'aspp1',
+                    rate=atrous_rates[0], epsilon=EPSILON, activation=activation)
+    # rate = 12 (24)
+    b2 = conv3x3(x, 256, 'aspp2',
+                    rate=atrous_rates[1], epsilon=EPSILON, activation=activation)
+    # rate = 18 (36)
+    b3 = conv3x3(x, 256, 'aspp3',
+                    rate=atrous_rates[2], epsilon=EPSILON, activation=activation)
+    # concatenate ASPP branches & project
+    x = Concatenate()([b4, b0, b1, b2, b3])
+
+    x = Conv2D(256, (1, 1), padding='same',
+               kernel_regularizer=DECAY,
+               use_bias=False, name='concat_projection')(x)
+    # x = BatchNormalization(name='concat_projection_BN', epsilon=EPSILON)(x)
+    x = BN(name='concat_projection_BN', epsilon=EPSILON)(x)
+    x = Activation(activation)(x)
+
+    x = Dropout(0.1)(x)
+
+    # x to 128x256 size
+    skip_size = tf.keras.backend.int_shape(skip1)
+    x = tf.keras.layers.experimental.preprocessing.Resizing(
+        *skip_size[1:3], interpolation="bilinear"
+    )(x)
+
+    aspp_aux = x
+
+    dec_skip1 = Conv2D(48, (1, 1), padding='same',
+                       kernel_regularizer=DECAY,
+                       use_bias=False, name='feature_projection0')(skip1)
+    # dec_skip1 = BatchNormalization(
+    #     name='feature_projection0_BN', epsilon=EPSILON)(dec_skip1)
+    dec_skip1 = BN(
+        name='feature_projection0_BN', epsilon=EPSILON)(dec_skip1)
+    dec_skip1 = Activation(activation)(dec_skip1)
+    x = Concatenate()([x, dec_skip1])
+
+    skip_aux = x
+
+    x = conv3x3(x, 256, 'decoder_conv0', epsilon=EPSILON, activation=activation)
+
+    x = conv3x3(x, 256, 'decoder_conv1', epsilon=EPSILON, activation=activation)
+
+    return x, aspp_aux, skip_aux
+
 def proposed_experiments(features, activation='swish'):
     """
     1030 proposed
@@ -192,6 +268,8 @@ def proposed_experiments(features, activation='swish'):
     x = Concatenate()([x, dec_skip])
     x = conv3x3(x, 256, 'edge_conv2', epsilon=EPSILON, activation=activation)
     x = conv3x3(x, 256, 'edge_conv3', epsilon=EPSILON, activation=activation)
+
+
 
     return x, edge, body, aspp_aux
 

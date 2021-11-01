@@ -64,8 +64,9 @@ test_steps = dataset.number_valid // BATCH_SIZE
 test_set = dataset.get_testData(dataset.valid_data)
 
 model = seg_model_build(image_size=IMAGE_SIZE, mode='seg', augment=True, weight_decay=WEIGHT_DECAY, num_classes=19)
-weight_name = '_1030_best_miou'
-# weight_name = '_1029_final_loss'
+weight_name = '_1101_best_miou'
+# weight_name = '_1101_final_loss'
+# weight_name = '_1030_best_loss'
 model.load_weights(CHECKPOINT_DIR + weight_name + '.h5',by_name=True)
 model.summary()
 print(get_flops(model, batch_size=1))
@@ -99,6 +100,9 @@ buffer = 0
 batch_index = 1
 save_path = './checkpoints/results/'+SAVE_MODEL_NAME+'/'
 os.makedirs(save_path, exist_ok=True)
+
+mirrored_strategy = tf.distribute.MirroredStrategy()
+
 
 for x, y in tqdm(test_set, total=test_steps):
     pred = model.predict_on_batch(x)#pred = tf.nn.softmax(pred)

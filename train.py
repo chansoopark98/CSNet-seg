@@ -120,7 +120,7 @@ if DISTRIBUTION_MODE:
         edge_mIoU = EdgeMIoU(20)
         loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1)
         aux_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.2) # original factor =0.2
-        aspp_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.8) #  original factor =0.5
+        aspp_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.7) #  original factor =0.5
 
         edge_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1) #  original factor =0.5
         body_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1) #  original factor =0.5

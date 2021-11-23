@@ -6,4 +6,5 @@ def seg_model_build(image_size, mode='cls', augment=False, weight_decay=0.0001, 
                                      input_shape=(image_size[0], image_size[1], 3),
                                      classes=num_classes, OS=16)
     model = keras.Model(input, output)
+
     return model

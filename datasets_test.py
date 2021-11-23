@@ -1,6 +1,7 @@
 from tensorflow.keras.applications.imagenet_utils import preprocess_input
 import tensorflow_datasets as tfds
 import tensorflow as tf
+from utils.cityscape_colormap import color_map
 # import tensorflow_addons as tfa
 
 AUTO = tf.data.experimental.AUTOTUNE
@@ -105,12 +106,27 @@ class CityScapes:
     @tf.function
     def preprocess_valid(self, sample):
         img = sample['image_left']
-        y_true = sample['segmentation_label']-1
+        y_true = sample['segmentation_label']
 
-        # y_true = tf.cast(y_true, tf.int32)
-        # orininal_y_true = y_true
+
+        # ### edge teest
+        # orininal_label = y_true
+        # edge_y_true = tf.cast(y_true, tf.float32)
+        # edge_y_true = tf.expand_dims(edge_y_true, 0)
+        # grad_components = tf.image.sobel_edges(edge_y_true)
+        # grad_mag_components = grad_components ** 2
+        # grad_mag_square = tf.math.reduce_sum(grad_mag_components, axis=-1)
+        #
+        # mask = tf.sqrt(grad_mag_square)
+        # ignore_mask = tf.where(y_true<0, 0, 1)
+        #
+        # y_true = tf.where(mask != 0, 1, 0)
+        # ignore =y_true * ignore_mask
+
+
         #
         # edge_label = tf.cast(y_true, tf.float32)
+        #
         # edge_label = tf.expand_dims(edge_label, 0)
         # grad_components = tf.image.sobel_edges(edge_label)
         #
@@ -120,23 +136,9 @@ class CityScapes:
         #
         # mask = tf.sqrt(grad_mag_square)
         #
-        # y_true = tf.where(mask == 0, y_true, 255)
+        # y_true = tf.where(mask == 0, y_true, 0)
 
-        ### edge teest
-        orininal_label = y_true
-        edge_y_true = tf.cast(y_true, tf.float32)
-        edge_y_true = tf.expand_dims(edge_y_true, 0)
-        grad_components = tf.image.sobel_edges(edge_y_true)
-        grad_mag_components = grad_components ** 2
-        grad_mag_square = tf.math.reduce_sum(grad_mag_components, axis=-1)
-
-        mask = tf.sqrt(grad_mag_square)
-        ignore_mask = tf.where(y_true>19, 0, 1)
-
-        y_true = tf.where(mask != 0, 1, 0)
-        ignore =y_true * ignore_mask
-
-        return (y_true, ignore)
+        return (y_true, img)
 
 
 
@@ -210,10 +212,32 @@ if __name__ == '__main__':
     buffer = ''
     id_list = []
     stack = 0
+    batch_index = 0
+    save_path = './checkpoints/results/' + SAVE_MODEL_NAME + '/'
+
     for id in train_data.take(2975):
         x, y = id
-        plt.imshow(x[0])
-        plt.show()
-        plt.imshow(y[0])
-        plt.show()
+
+        # plt.imshow(x[0])
+        # plt.show()
+        # plt.imshow(y)
+        # plt.show()
+
+        r = x
+        g = x
+        b = x
+
+        for j in range(19):
+            r = tf.where(tf.equal(r, j), color_map[j][0], r)
+            g = tf.where(tf.equal(g, j), color_map[j][1], g)
+            b = tf.where(tf.equal(b, j), color_map[j][2], b)
+
+        # r = tf.expand_dims(r, axis=-1)
+        # g = tf.expand_dims(g, axis=-1)
+        # b = tf.expand_dims(b, axis=-1)
+
+        rgb_img = tf.concat([r, g, b], axis=-1)
+
+        tf.keras.preprocessing.image.save_img(save_path + str(batch_index) + '.png', rgb_img)
+        batch_index += 1
 

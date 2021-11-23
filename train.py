@@ -9,6 +9,7 @@ import argparse
 import time
 import os
 import tensorflow as tf
+import tensorflow_addons as tfa
 from utils.get_flops import get_flops
 # from utils.cityscape_colormap import class_weight
 # from utils.adamW import LearningRateScheduler, poly_decay
@@ -86,14 +87,20 @@ tensorboard = tf.keras.callbacks.TensorBoard(log_dir=TENSORBOARD_DIR, write_grap
 
 polyDecay = tf.keras.optimizers.schedules.PolynomialDecay(initial_learning_rate=base_lr,
                                                           decay_steps=EPOCHS,
-                                                          end_learning_rate=0.0, power=0.9)
+                                                          end_learning_rate=0.0001, power=0.9)
 
 lr_scheduler = tf.keras.callbacks.LearningRateScheduler(polyDecay,verbose=1)
 
 if OPTIMIZER_TYPE == 'sgd':
     optimizer = tf.keras.optimizers.SGD(momentum=0.9, learning_rate=base_lr)
 else:
-    optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
+    # optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
+    optimizer =  tfa.optimizers.RectifiedAdam(learning_rate=base_lr,
+                                              weight_decay=0.0001,
+                                              total_steps=int(train_dataset_config.number_train / ( BATCH_SIZE / EPOCHS)),
+                                              warmup_proportion=0.1,
+                                              min_lr=0.0001)
+
 
 if MIXED_PRECISION:
     optimizer = mixed_precision.LossScaleOptimizer(optimizer, loss_scale='dynamic')  # tf2.4.1 이전
@@ -119,12 +126,10 @@ if DISTRIBUTION_MODE:
         body_mIoU = MIoU(20)
         edge_mIoU = EdgeMIoU(20)
         loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1)
-        aux_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.2) # original factor =0.2
-        aspp_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.7) #  original factor =0.5
+        aux_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.4) # original factor =0.2
 
-        edge_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1) #  original factor =0.5
-        body_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1) #  original factor =0.5
-
+        edge_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1)  # original factor =0.5
+        body_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1)
 
         model = seg_model_build(image_size=IMAGE_SIZE, mode='seg', augment=True, weight_decay=WEIGHT_DECAY,
                                 optimizer=OPTIMIZER_TYPE)
@@ -132,8 +137,7 @@ if DISTRIBUTION_MODE:
         losses = {'output': loss.ce_loss,
                   'edge': edge_loss.sigmoid_loss,
                   'body': body_loss.body_loss,
-                  'aspp': aux_loss.ce_loss
-
+                  'aux': aux_loss.ce_loss,
                   }
 
         model.compile(

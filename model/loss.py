@@ -203,14 +203,8 @@ class Seg_loss:
                                                                 reduction=tf.keras.losses.Reduction.NONE)(y_true=gt,
                                                                                                           y_pred=prediction)
 
-        # weights = tf.gather(self.cls_weight, gt)
-        # ce_loss = (ce_loss * weights) * self.aux_factor
-
-        # ce_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=gt, logits=prediction)
-
-        # weights = tf.gather(self.cls_weight, gt)
-        # ce_loss = (ce_loss * weights) * self.aux_factor
-        # ce_loss *= self.cls_weight
+        weights = tf.gather(self.cls_weight, gt)
+        ce_loss = (ce_loss * weights) * self.aux_factor
 
         return ce_loss
 
@@ -235,7 +229,7 @@ class Seg_loss:
         # min_loss = tfp.stats.percentile(sig_loss, 80, interpolation='midpoint')
         # sig_loss = tf.boolean_mask(sig_loss, sig_loss > min_loss)
 
-        return sig_loss
+        return sig_loss * self.aux_factor
 
 
     def edge_loss(self, y_true, y_pred):

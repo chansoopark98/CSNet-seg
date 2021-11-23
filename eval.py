@@ -64,8 +64,8 @@ test_steps = dataset.number_valid // BATCH_SIZE
 test_set = dataset.get_testData(dataset.valid_data)
 
 model = seg_model_build(image_size=IMAGE_SIZE, mode='seg', augment=True, weight_decay=WEIGHT_DECAY, num_classes=19)
-weight_name = '_1101_best_miou'
-# weight_name = '_1101_final_loss'
+weight_name = '_1112_best_miou'
+# weight_name = '_1103_final_loss'
 # weight_name = '_1030_best_loss'
 model.load_weights(CHECKPOINT_DIR + weight_name + '.h5',by_name=True)
 model.summary()
@@ -73,15 +73,6 @@ print(get_flops(model, batch_size=1))
 
 class MeanIOU(tf.keras.metrics.MeanIoU):
     def update_state(self, y_true, y_pred, sample_weight=None):
-        # y_true = tf.squeeze(y_true, axis=-1)
-        # y_true = tf.reshape(y_true, [-1,])
-        #
-        # raw_prediction = tf.reshape(y_pred, [-1,])
-        # indices = tf.squeeze(tf.where(tf.less_equal(y_true, self.num_classes-1)), 1)
-        # y_true = tf.cast(tf.gather(y_true, indices), tf.int32)
-        # y_pred = tf.gather(raw_prediction, indices)
-
-
         y_true = tf.squeeze(y_true, axis=-1)
         y_pred += 1
 
@@ -101,8 +92,6 @@ batch_index = 1
 save_path = './checkpoints/results/'+SAVE_MODEL_NAME+'/'
 os.makedirs(save_path, exist_ok=True)
 
-mirrored_strategy = tf.distribute.MirroredStrategy()
-
 
 for x, y in tqdm(test_set, total=test_steps):
     pred = model.predict_on_batch(x)#pred = tf.nn.softmax(pred)
@@ -113,7 +102,7 @@ for x, y in tqdm(test_set, total=test_steps):
     # plt.show()
 
     #
-    # arg_pred = tf.math.argmax(pred[2], axis=-1)
+    arg_pred = tf.math.argmax(pred[2], axis=-1)
     # plt.imshow(arg_pred[0])
     # plt.show()
     #
@@ -121,9 +110,8 @@ for x, y in tqdm(test_set, total=test_steps):
     # plt.imshow(arg_pred[0])
     # plt.show()
 
-    pred = pred[0]
-    arg_pred = tf.math.argmax(pred, axis=-1)
-
+    # pred = pred[0]
+    # arg_pred = tf.math.argmax(pred, axis=-1)
 
     for i in range(len(arg_pred)):
         metric.update_state(y[i], arg_pred[i])
@@ -135,7 +123,7 @@ for x, y in tqdm(test_set, total=test_steps):
         g = arg_pred[i]
         b = arg_pred[i]
 
-        for j in range(19):
+        for j in range(20):
             r = tf.where(tf.equal(r, j), color_map[j][0], r)
             g = tf.where(tf.equal(g, j), color_map[j][1], g)
             b = tf.where(tf.equal(b, j), color_map[j][2], b)
@@ -147,8 +135,6 @@ for x, y in tqdm(test_set, total=test_steps):
         rgb_img = tf.concat([r, g, b], axis=-1)
 
         tf.keras.preprocessing.image.save_img(save_path+str(batch_index)+'.png', rgb_img)
-        # plt.imshow(rgb_img)
-        # plt.show()
         batch_index += 1
 
 

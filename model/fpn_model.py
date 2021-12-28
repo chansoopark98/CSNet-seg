@@ -32,9 +32,10 @@ import tensorflow_addons as tfa
 
 MOMENTUM = 0.99
 EPSILON = 1e-5
-# DECAY = tf.keras.regularizers.L2(l2=0.0001/2)
-DECAY = None
-BN = tf.keras.layers.experimental.SyncBatchNormalization
+DECAY = tf.keras.regularizers.L2(l2=0.0001/2)
+# DECAY = None
+# BN = tf.keras.layers.experimental.SyncBatchNormalization
+BN = BatchNormalization
 CONV_KERNEL_INITIALIZER = tf.keras.initializers.VarianceScaling(scale=1.0, mode="fan_out", distribution="truncated_normal")
 atrous_rates= (6, 12, 18)
 

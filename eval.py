@@ -64,7 +64,7 @@ test_steps = dataset.number_valid // BATCH_SIZE
 test_set = dataset.get_testData(dataset.valid_data)
 
 model = seg_model_build(image_size=IMAGE_SIZE, mode='seg', augment=True, weight_decay=WEIGHT_DECAY, num_classes=19)
-weight_name = '_1112_best_miou'
+weight_name = '_1227_best_miou'
 # weight_name = '_1103_final_loss'
 # weight_name = '_1030_best_loss'
 model.load_weights(CHECKPOINT_DIR + weight_name + '.h5',by_name=True)
@@ -102,7 +102,7 @@ for x, y in tqdm(test_set, total=test_steps):
     # plt.show()
 
     #
-    arg_pred = tf.math.argmax(pred[2], axis=-1)
+    # arg_pred = tf.math.argmax(pred[2], axis=-1)
     # plt.imshow(arg_pred[0])
     # plt.show()
     #
@@ -110,8 +110,8 @@ for x, y in tqdm(test_set, total=test_steps):
     # plt.imshow(arg_pred[0])
     # plt.show()
 
-    # pred = pred[0]
-    # arg_pred = tf.math.argmax(pred, axis=-1)
+    pred = pred[0]
+    arg_pred = tf.math.argmax(pred, axis=-1)
 
     for i in range(len(arg_pred)):
         metric.update_state(y[i], arg_pred[i])
@@ -123,7 +123,7 @@ for x, y in tqdm(test_set, total=test_steps):
         g = arg_pred[i]
         b = arg_pred[i]
 
-        for j in range(20):
+        for j in range(19):
             r = tf.where(tf.equal(r, j), color_map[j][0], r)
             g = tf.where(tf.equal(g, j), color_map[j][1], g)
             b = tf.where(tf.equal(b, j), color_map[j][2], b)

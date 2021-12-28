@@ -20,8 +20,8 @@ from utils.get_flops import get_flops
 tf.keras.backend.clear_session()
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=16)
-parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=120)
+parser.add_argument("--batch_size",     type=int,   help="배치 사이즈값 설정", default=8)
+parser.add_argument("--epoch",          type=int,   help="에폭 설정", default=100)
 parser.add_argument("--lr",             type=float, help="Learning rate 설정", default=0.001)
 parser.add_argument("--weight_decay",   type=float, help="Weight Decay 설정", default=0.0005)
 parser.add_argument("--optimizer",     type=str,   help="Optimizer", default='adam')
@@ -94,12 +94,12 @@ lr_scheduler = tf.keras.callbacks.LearningRateScheduler(polyDecay,verbose=1)
 if OPTIMIZER_TYPE == 'sgd':
     optimizer = tf.keras.optimizers.SGD(momentum=0.9, learning_rate=base_lr)
 else:
-    # optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
-    optimizer =  tfa.optimizers.RectifiedAdam(learning_rate=base_lr,
-                                              weight_decay=0.0001,
-                                              total_steps=int(train_dataset_config.number_train / ( BATCH_SIZE / EPOCHS)),
-                                              warmup_proportion=0.1,
-                                              min_lr=0.0001)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
+    # optimizer =  tfa.optimizers.RectifiedAdam(learning_rate=base_lr,
+    #                                           weight_decay=0.0001,
+    #                                           total_steps=int(train_dataset_config.number_train / ( BATCH_SIZE / EPOCHS)),
+    #                                           warmup_proportion=0.1,
+    #                                           min_lr=0.0001)
 
 
 if MIXED_PRECISION:
@@ -108,89 +108,125 @@ if MIXED_PRECISION:
 
 callback = [checkpoint_val_miou, checkpoint_val_loss,  tensorboard, testCallBack, lr_scheduler]
 
+mIoU = MIoU(20)
+body_mIoU = MIoU(20)
+edge_mIoU = EdgeMIoU(20)
+loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1)
+aux_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.4) # original factor =0.2
 
+edge_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=0.5)  # original factor =0.5
+body_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=0.5)
 
-if DISTRIBUTION_MODE:
-    # mirrored_strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy(
-    #     tf.distribute.experimental.CollectiveCommunication.NCCL)
-    # mirrored_strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
-    mirrored_strategy = tf.distribute.MirroredStrategy()
+model = seg_model_build(image_size=IMAGE_SIZE, mode='seg', augment=True, weight_decay=WEIGHT_DECAY,
+                        optimizer=OPTIMIZER_TYPE)
 
-    with mirrored_strategy.scope():
-        print("Number of devices: {}".format(mirrored_strategy.num_replicas_in_sync))
-        # train_data = mirrored_strategy.experimental_distribute_dataset(train_data)
-        # valid_data = mirrored_strategy.experimental_distribute_dataset(valid_data)
+losses = {'output': loss.ce_loss,
+          'edge': edge_loss.sigmoid_loss,
+          'body': body_loss.body_loss,
+          'aux': aux_loss.ce_loss
+          }
 
-        # mIoU = MeanIOU(19)
-        mIoU = MIoU(20)
-        body_mIoU = MIoU(20)
-        edge_mIoU = EdgeMIoU(20)
-        loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1)
-        aux_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.4) # original factor =0.2
+model.compile(
+    optimizer=optimizer,
+    loss=losses,
+    metrics={'output': mIoU})
+# 'edge':edge_mIoU})
 
-        edge_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1)  # original factor =0.5
-        body_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1)
+if LOAD_WEIGHT:
+    weight_name = '_1002_best_miou'
+    model.load_weights(CHECKPOINT_DIR + weight_name + '.h5')
 
-        model = seg_model_build(image_size=IMAGE_SIZE, mode='seg', augment=True, weight_decay=WEIGHT_DECAY,
-                                optimizer=OPTIMIZER_TYPE)
+model.summary()
 
-        losses = {'output': loss.ce_loss,
-                  'edge': edge_loss.sigmoid_loss,
-                  'body': body_loss.body_loss,
-                  'aux': aux_loss.ce_loss,
-                  }
+history = model.fit(train_data,
+                    validation_data=valid_data,
+                    steps_per_epoch=steps_per_epoch,
+                    validation_steps=validation_steps,
+                    epochs=EPOCHS,
+                    callbacks=callback)
 
-        model.compile(
-            optimizer=optimizer,
-            loss=losses,
-            metrics={'output': mIoU})
-                     # 'edge':edge_mIoU})
-
-        if LOAD_WEIGHT:
-            weight_name = '_1002_best_miou'
-            model.load_weights(CHECKPOINT_DIR + weight_name + '.h5')
-
-        model.summary()
-
-        history = model.fit(train_data,
-                validation_data=valid_data,
-                steps_per_epoch=steps_per_epoch,
-                validation_steps=validation_steps,
-                epochs=EPOCHS,
-                callbacks=callback)
-
-        model.save_weights(CHECKPOINT_DIR + '_' + SAVE_MODEL_NAME + '_final_loss.h5')
-
-else:
-    # mIoU = MeanIOU(19)
-    mIoU = MIoU(20)
-    loss = Seg_loss(BATCH_SIZE, distribute_mode=False)
-    aux_loss = Seg_loss(BATCH_SIZE, distribute_mode=False, use_aux=True)
-
-    model = seg_model_build(image_size=IMAGE_SIZE, mode='seg', augment=True, weight_decay=WEIGHT_DECAY,
-                            optimizer=OPTIMIZER_TYPE)
-
-    losses = {'output': loss.ce_loss,
-              'aux': aux_loss.ce_loss,
-              'aspp_aux': aux_loss.ce_loss
-              }
-
-    model.compile(
-        optimizer=optimizer,
-        loss=losses,
-        metrics=[mIoU])
-
-    if LOAD_WEIGHT:
-        weight_name = '_0811_best_miou'
-        model.load_weights(CHECKPOINT_DIR + weight_name + '.h5')
-
-    model.summary()
-
-    history = model.fit(train_data,
-                        validation_data=valid_data,
-                        steps_per_epoch=steps_per_epoch,
-                        validation_steps=validation_steps,
-                        epochs=EPOCHS,
-                        callbacks=callback)
+model.save_weights(CHECKPOINT_DIR + '_' + SAVE_MODEL_NAME + '_final_loss.h5')
+#
+# if DISTRIBUTION_MODE:
+#     # mirrored_strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy(
+#     #     tf.distribute.experimental.CollectiveCommunication.NCCL)
+#     # mirrored_strategy = tf.distribute.MirroredStrategy(cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
+#     mirrored_strategy = tf.distribute.MirroredStrategy()
+#
+#     with mirrored_strategy.scope():
+#         print("Number of devices: {}".format(mirrored_strategy.num_replicas_in_sync))
+#         # train_data = mirrored_strategy.experimental_distribute_dataset(train_data)
+#         # valid_data = mirrored_strategy.experimental_distribute_dataset(valid_data)
+#
+#         # mIoU = MeanIOU(19)
+#         mIoU = MIoU(20)
+#         body_mIoU = MIoU(20)
+#         edge_mIoU = EdgeMIoU(20)
+#         loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1)
+#         # aux_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.4) # original factor =0.2
+#
+#         edge_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=0.2)  # original factor =0.5
+#         body_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=0.8)
+#
+#         model = seg_model_build(image_size=IMAGE_SIZE, mode='seg', augment=True, weight_decay=WEIGHT_DECAY,
+#                                 optimizer=OPTIMIZER_TYPE)
+#
+#         losses = {'output': loss.ce_loss,
+#                   'edge': edge_loss.sigmoid_loss,
+#                   'body': body_loss.body_loss
+#                   }
+#
+#         model.compile(
+#             optimizer=optimizer,
+#             loss=losses,
+#             metrics={'output': mIoU})
+#                      # 'edge':edge_mIoU})
+#
+#         if LOAD_WEIGHT:
+#             weight_name = '_1002_best_miou'
+#             model.load_weights(CHECKPOINT_DIR + weight_name + '.h5')
+#
+#         model.summary()
+#
+#         history = model.fit(train_data,
+#                 validation_data=valid_data,
+#                 steps_per_epoch=steps_per_epoch,
+#                 validation_steps=validation_steps,
+#                 epochs=EPOCHS,
+#                 callbacks=callback)
+#
+#         model.save_weights(CHECKPOINT_DIR + '_' + SAVE_MODEL_NAME + '_final_loss.h5')
+#
+# else:
+#     # mIoU = MeanIOU(19)
+#     mIoU = MIoU(20)
+#     loss = Seg_loss(BATCH_SIZE, distribute_mode=False)
+#     aux_loss = Seg_loss(BATCH_SIZE, distribute_mode=False, use_aux=True)
+#
+#     model = seg_model_build(image_size=IMAGE_SIZE, mode='seg', augment=True, weight_decay=WEIGHT_DECAY,
+#                             optimizer=OPTIMIZER_TYPE)
+#
+#     losses = {'output': loss.ce_loss,
+#               'aux': aux_loss.ce_loss,
+#               'aspp_aux': aux_loss.ce_loss
+#               }
+#
+#     model.compile(
+#         optimizer=optimizer,
+#         loss=losses,
+#         metrics=[mIoU])
+#
+#     if LOAD_WEIGHT:
+#         weight_name = '_0811_best_miou'
+#         model.load_weights(CHECKPOINT_DIR + weight_name + '.h5')
+#
+#     model.summary()
+#
+#     history = model.fit(train_data,
+#                         validation_data=valid_data,
+#                         steps_per_epoch=steps_per_epoch,
+#                         validation_steps=validation_steps,
+#                         epochs=EPOCHS,
+#                         callbacks=callback)
 
 

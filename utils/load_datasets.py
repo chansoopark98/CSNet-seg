@@ -64,7 +64,7 @@ class CityScapes:
 
         # if self.model_name == 'ddrnet':
         # img = imgNetNorm(img)
-        img = preprocess_input(img, mode='tf')
+        img = preprocess_input(img, mode='torch')
 
         # img = (img - self.mean) / self.std
 
@@ -122,7 +122,7 @@ class CityScapes:
         img = tf.cast(img, dtype=tf.float32)
         labels = tf.cast(labels, dtype=tf.int32)
 
-        img = preprocess_input(img, mode='tf')
+        img = preprocess_input(img, mode='torch')
         # img = (img - self.mean) / self.std
 
         # img = img / 255.0
@@ -155,7 +155,7 @@ class CityScapes:
 
 
 
-        img = preprocess_input(img, mode='tf')
+        img = preprocess_input(img, mode='torch')
         # img = (img - self.mean) / self.std
 
         # img = img / 255.0
@@ -188,7 +188,7 @@ class CityScapes:
         return (x, labels)
 
     def get_trainData(self, train_data):
-        train_data = train_data.shuffle(800)
+        train_data = train_data.shuffle(1024)
         train_data = train_data.map(self.preprocess, num_parallel_calls=AUTO)
         train_data = train_data.map(self.augmentation, num_parallel_calls=AUTO)
         train_data = train_data.padded_batch(self.batch_size)

@@ -111,11 +111,11 @@ callback = [checkpoint_val_miou, checkpoint_val_loss,  tensorboard, testCallBack
 mIoU = MIoU(20)
 body_mIoU = MIoU(20)
 edge_mIoU = EdgeMIoU(20)
-loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=1)
-aux_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, use_aux=True, aux_factor=0.4) # original factor =0.2
+loss = Seg_loss(distribute_mode=True, aux_factor=1)
+aux_loss = Seg_loss(distribute_mode=True, use_aux=True, aux_factor=0.4) # original factor =0.2
 
-edge_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=0.5)  # original factor =0.5
-body_loss = Seg_loss(BATCH_SIZE, distribute_mode=True, aux_factor=0.5)
+edge_loss = Seg_loss(distribute_mode=True, aux_factor=0.5)  # original factor =0.5
+body_loss = Seg_loss( distribute_mode=True, aux_factor=0.5)
 
 model = seg_model_build(image_size=IMAGE_SIZE, mode='seg', augment=True, weight_decay=WEIGHT_DECAY,
                         optimizer=OPTIMIZER_TYPE)

@@ -3,6 +3,7 @@ __pycache__/
 datasets/
 tensorboard/
 checkpoints/
+demo_outputs/
 *.py[cod]
 *$py.class
 

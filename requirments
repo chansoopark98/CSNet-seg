@@ -1,4 +1,0 @@
-tensorflow==2.4.1
-matplotlib
-tensorflow_datasets
-tensorflow_addons

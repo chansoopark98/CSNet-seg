@@ -11,17 +11,17 @@ import tensorflow as tf
 
 
 """Global hyper-parameters setup"""
-MOMENTUM = 0.99
-EPSILON = 1e-5
+MOMENTUM = 0.9
+EPSILON = 1e-3
 # DECAY = tf.keras.regularizers.L2(l2=0.0001/2)
 DECAY = None
 # BN = tf.keras.layers.experimental.SyncBatchNormalization
 BN = BatchNormalization
-# CONV_KERNEL_INITIALIZER = tf.keras.initializers.VarianceScaling(scale=1.0, mode="fan_out", distribution="truncated_normal")
-CONV_KERNEL_INITIALIZER = 'he_normal'
+CONV_KERNEL_INITIALIZER = tf.keras.initializers.VarianceScaling(scale=1.0, mode="fan_out", distribution="truncated_normal")
+# CONV_KERNEL_INITIALIZER = 'he_normal'
 atrous_rates= (6, 12, 18)
 
-def deepLabV3Plus(features, activation='swish'):
+def deepLabV3Plus(features, activation='relu'):
     skip1, x = features # c1 48 / c2 64
 
     # Image Feature branch
@@ -31,7 +31,7 @@ def deepLabV3Plus(features, activation='swish'):
     # from (b_size, channels)->(b_size, 1, 1, channels)
     b4 = Reshape((1, 1, b4_shape[1]))(b4)
     b4 = Conv2D(256, (1, 1), padding='same',
-                kernel_regularizer=DECAY,
+                kernel_initializer=CONV_KERNEL_INITIALIZER,
                 use_bias=False, name='image_pooling')(b4)
     b4 = BN(name='image_pooling_BN', epsilon=EPSILON, momentum=MOMENTUM)(b4)
     b4 = Activation(activation)(b4)
@@ -44,32 +44,32 @@ def deepLabV3Plus(features, activation='swish'):
     # b4 = UpSampling2D(size=(32, 64), interpolation="bilinear")(b4)
     # simple 1x1
     b0 = Conv2D(256, (1, 1), padding='same',
-                kernel_regularizer=DECAY,
+                kernel_initializer=CONV_KERNEL_INITIALIZER,
                 use_bias=False, name='aspp0')(x)
     # b0 = BatchNormalization(name='aspp0_BN', epsilon=1e-5)(b0)
     b0 = BN(name='aspp0_BN', epsilon=EPSILON, momentum=MOMENTUM)(b0)
     b0 = Activation(activation, name='aspp0_activation')(b0)
 
     b1 = conv3x3(x, 256, 'aspp1',
-                    rate=atrous_rates[0], depth_activation=True, epsilon=EPSILON, momentum=MOMENTUM)
+                    rate=atrous_rates[0], depth_activation=True, epsilon=EPSILON, momentum=MOMENTUM, activation=activation, mode='sep')
     # rate = 12 (24)
     b2 = conv3x3(x, 256, 'aspp2',
-                    rate=atrous_rates[1], depth_activation=True, epsilon=EPSILON, momentum=MOMENTUM)
+                    rate=atrous_rates[1], depth_activation=True, epsilon=EPSILON, momentum=MOMENTUM, activation=activation, mode='sep')
     # rate = 18 (36)
     b3 = conv3x3(x, 256, 'aspp3',
-                    rate=atrous_rates[2], depth_activation=True, epsilon=EPSILON, momentum=MOMENTUM)
+                    rate=atrous_rates[2], depth_activation=True, epsilon=EPSILON, momentum=MOMENTUM, activation=activation, mode='sep')
 
     # concatenate ASPP branches & project
     x = Concatenate()([b4, b0, b1, b2, b3])
 
     x = Conv2D(256, (1, 1), padding='same',
-               kernel_regularizer=DECAY,
+               kernel_initializer=CONV_KERNEL_INITIALIZER,
                use_bias=False, name='concat_projection')(x)
     # x = BatchNormalization(name='concat_projection_BN', epsilon=1e-5)(x)
     x = BN(name='concat_projection_BN', epsilon=EPSILON, momentum=MOMENTUM)(x)
     x = Activation(activation)(x)
 
-    x = Dropout(0.1)(x)
+    x = Dropout(0.5)(x)
 
     skip_size = tf.keras.backend.int_shape(skip1)
     x = tf.keras.layers.experimental.preprocessing.Resizing(
@@ -79,7 +79,7 @@ def deepLabV3Plus(features, activation='swish'):
     # x = UpSampling2D((4,4), interpolation='bilinear')(x)
 
     dec_skip1 = Conv2D(48, (1, 1), padding='same',
-                       kernel_regularizer=DECAY,
+                       kernel_initializer=CONV_KERNEL_INITIALIZER,
                        use_bias=False, name='feature_projection0')(skip1)
     # dec_skip1 = BatchNormalization(
     #     name='feature_projection0_BN', epsilon=1e-5)(dec_skip1)
@@ -88,9 +88,9 @@ def deepLabV3Plus(features, activation='swish'):
     dec_skip1 = Activation(activation)(dec_skip1)
     x = Concatenate()([x, dec_skip1])
     x = conv3x3(x, 256, 'decoder_conv0',
-                   depth_activation=True, epsilon=EPSILON, momentum=MOMENTUM)
+                   depth_activation=True, epsilon=EPSILON, momentum=MOMENTUM, activation=activation, mode='sep')
     x = conv3x3(x, 256, 'decoder_conv1',
-                   depth_activation=True, epsilon=EPSILON, momentum=MOMENTUM)
+                   depth_activation=True, epsilon=EPSILON, momentum=MOMENTUM, activation=activation, mode='sep')
 
     return x
 
@@ -214,12 +214,30 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
 
 
 def build_generator(input_shape=(512, 1024, 3), classes=19):
-    base = resnest.resnest50(input_shape=input_shape, include_top=False, input_tensor=None)
+    # base = resnest.resnest50(input_shape=input_shape, include_top=False, input_tensor=None)
+    #
+    # model_input = base.input
+    # c2 = base.get_layer('stage1_block3_shorcut_act').output  # 1/4 @ 256 64x64
+    # x = base.get_layer('stage4_block3_shorcut_act').output  # 1/32 @2048 8x8
+    # features = [c2, x]
+
+    base = EfficientNetV2S(input_shape=input_shape, pretrained="imagenet")
 
     model_input = base.input
-    c2 = base.get_layer('stage1_block3_shorcut_act').output  # 1/4 @ 256 64x64
-    x = base.get_layer('stage4_block3_shorcut_act').output  # 1/32 @2048 8x8
-    features = [c2, x]
+    c5 = base.get_layer('add_34').output  # 16x32 256 or get_layer('post_swish') => 확장된 채널 1280
+    # c5 = base.get_layer('post_swish').output  # 32x64 256 or get_layer('post_swish') => 확장된 채널 1280
+    # c4 = base.get_layer('add_20').output  # 32x64 64
+    # c3 = base.get_layer('add_7').output  # 64x128 48
+    # c2 = base.get_layer('add_6').output  # 128x256 48
+    c2 = base.get_layer('add_4').output  # 128x256 48
+    """
+    for EfficientNetV2S (input resolution: 512x1024)
+    32x64 = 'add_34'
+    64x128 = 'add_7'
+    128x256 = 'add_4'
+    """
+    features = [c2, c5]
+
 
     model_output = deepLabV3Plus(features=features, activation='swish')
     # decoder_output, _, _, _ = proposed_experiments(features=features, activation='swish')
@@ -313,7 +331,7 @@ def conv3x3(x, filters, prefix, stride=1, kernel_size=3, rate=1, depth_activatio
 
     else:
         x = Conv2D(filters=filters, kernel_size=(kernel_size, kernel_size), strides=(stride, stride),
-                   padding='same', kernel_regularizer=DECAY,
+                   padding='same', kernel_initializer=CONV_KERNEL_INITIALIZER,
                use_bias=False, dilation_rate=(rate, rate), name=prefix + '_stdConv')(x)
 
         # x = BatchNormalization(name=prefix + '_stdConv_BN', epsilon=epsilon)(x)

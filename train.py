@@ -16,6 +16,9 @@ from utils.get_flops import get_flops
 # import tensorflow_addons
 # sudo apt-get install libtcmalloc-minimal4
 # LD_PRELOAD="/lib/x86_64-linux-gnu/libtcmalloc_minimal.so.4" python train.py
+# LD_PRELOAD="/lib/x86_64-linux-gnu/libtcmalloc_minimal.so.4" python train.py
+# LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libtcmalloc_minimal.so.4.3.0" python gan_train.py
+
 
 tf.keras.backend.clear_session()
 

@@ -83,7 +83,6 @@ class MeanIOU(tf.keras.metrics.MeanIoU):
         y_true *= indices
         zeros_y_pred *= indices
 
-
         return super().update_state(y_true, zeros_y_pred, sample_weight)
 
 metric = MeanIOU(20)

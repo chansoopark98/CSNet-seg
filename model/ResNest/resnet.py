@@ -1,7 +1,7 @@
 import tensorflow as tf
 from .splat import *
-BN_MOMENTUM = 0.99
-BN_EPSILON = 1e-3
+BN_MOMENTUM = 0.9
+BN_EPSILON = 1e-5
 
 def resnest_block(x, n_filter, stride_size=1, dilation=1, group_size=1, radix=1, block_width=64, avd=False,
                   avd_first=False, downsample=None, dropout_rate=0., expansion=4, is_first=False, stage=1, index=1):

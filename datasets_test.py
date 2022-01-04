@@ -1,3 +1,5 @@
+import os
+
 from tensorflow.keras.applications.imagenet_utils import preprocess_input
 import tensorflow_datasets as tfds
 import tensorflow as tf
@@ -138,7 +140,7 @@ class CityScapes:
         #
         # y_true = tf.where(mask == 0, y_true, 0)
 
-        return (y_true, img)
+        return (img, y_true)
 
 
 
@@ -197,7 +199,7 @@ if __name__ == '__main__':
     DATASET_DIR = args.dataset_dir
     CHECKPOINT_DIR = args.checkpoint_dir
     TENSORBOARD_DIR = args.tensorboard_dir
-    IMAGE_SIZE = (1024, 1024)
+    IMAGE_SIZE = (512, 1024)
     # IMAGE_SIZE = (None, None)
     USE_WEIGHT_DECAY = args.use_weightDecay
     LOAD_WEIGHT = args.load_weight
@@ -213,31 +215,38 @@ if __name__ == '__main__':
     id_list = []
     stack = 0
     batch_index = 0
-    save_path = './checkpoints/results/' + SAVE_MODEL_NAME + '/'
+    img_path = './checkpoints/original/'
+    label_path = './checkpoints/labels/'
+    os.makedirs(img_path, exist_ok=True)
+    os.makedirs(label_path, exist_ok=True)
 
     for id in train_data.take(2975):
         x, y = id
 
-        # plt.imshow(x[0])
+        # img = tf.image.random_crop(x, (512, 1024, 3), seed=1000)
+        # label = tf.image.random_crop(y, (512, 1024, 1), seed=1000)
+
+        # plt.imshow(x)
         # plt.show()
         # plt.imshow(y)
         # plt.show()
-
-        r = x
-        g = x
-        b = x
-
-        for j in range(19):
-            r = tf.where(tf.equal(r, j), color_map[j][0], r)
-            g = tf.where(tf.equal(g, j), color_map[j][1], g)
-            b = tf.where(tf.equal(b, j), color_map[j][2], b)
-
-        # r = tf.expand_dims(r, axis=-1)
-        # g = tf.expand_dims(g, axis=-1)
-        # b = tf.expand_dims(b, axis=-1)
-
-        rgb_img = tf.concat([r, g, b], axis=-1)
-
-        tf.keras.preprocessing.image.save_img(save_path + str(batch_index) + '.png', rgb_img)
+        #
+        # r = x
+        # g = x
+        # b = x
+        #
+        # for j in range(19):
+        #     r = tf.where(tf.equal(r, j), color_map[j][0], r)
+        #     g = tf.where(tf.equal(g, j), color_map[j][1], g)
+        #     b = tf.where(tf.equal(b, j), color_map[j][2], b)
+        #
+        # # r = tf.expand_dims(r, axis=-1)
+        # # g = tf.expand_dims(g, axis=-1)
+        # # b = tf.expand_dims(b, axis=-1)
+        #
+        # rgb_img = tf.concat([r, g, b], axis=-1)
+        #
+        tf.keras.preprocessing.image.save_img(img_path + str(batch_index) + '.png', x)
+        tf.keras.preprocessing.image.save_img(label_path + str(batch_index) + '.png', y)
         batch_index += 1
 

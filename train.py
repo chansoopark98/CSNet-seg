@@ -97,12 +97,12 @@ lr_scheduler = tf.keras.callbacks.LearningRateScheduler(polyDecay,verbose=1)
 if OPTIMIZER_TYPE == 'sgd':
     optimizer = tf.keras.optimizers.SGD(momentum=0.9, learning_rate=base_lr)
 else:
-    optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
-    # optimizer =  tfa.optimizers.RectifiedAdam(learning_rate=base_lr,
-    #                                           weight_decay=0.0001,
-    #                                           total_steps=int(train_dataset_config.number_train / ( BATCH_SIZE / EPOCHS)),
-    #                                           warmup_proportion=0.1,
-    #                                           min_lr=0.0001)
+    # optimizer = tf.keras.optimizers.Adam(learning_rate=base_lr)
+    optimizer =  tfa.optimizers.RectifiedAdam(learning_rate=base_lr,
+                                              weight_decay=0.0001,
+                                              total_steps=int(train_dataset_config.number_train / ( BATCH_SIZE / EPOCHS)),
+                                              warmup_proportion=0.1,
+                                              min_lr=0.0001)
 
 
 if MIXED_PRECISION:
@@ -126,7 +126,7 @@ model = seg_model_build(image_size=IMAGE_SIZE, mode='seg', augment=True, weight_
 losses = {'output': loss.ce_loss,
           'edge': edge_loss.sigmoid_loss,
           'body': body_loss.body_loss,
-          'aux': aux_loss.ce_loss
+          # 'aux': aux_loss.ce_loss
           }
 
 model.compile(

@@ -64,7 +64,7 @@ test_steps = dataset.number_valid // BATCH_SIZE
 test_set = dataset.get_testData(dataset.valid_data)
 
 model = seg_model_build(image_size=IMAGE_SIZE, mode='seg', augment=True, weight_decay=WEIGHT_DECAY, num_classes=19)
-weight_name = '_1227_best_miou'
+weight_name = '_1229_best_miou'
 # weight_name = '_1103_final_loss'
 # weight_name = '_1030_best_loss'
 model.load_weights(CHECKPOINT_DIR + weight_name + '.h5',by_name=True)

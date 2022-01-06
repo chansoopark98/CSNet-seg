@@ -200,12 +200,17 @@ def csnet_seg_model(backbone='efficientV2-s', input_shape=(512, 1024, 3), classe
 
     model_input = base.input
     # model_output, aspp_aux = deepLabV3Plus(features=features, fpn_times=2, activation='swish', mode='deeplabv3+')
+<<<<<<< Updated upstream
     decoder_output, edge, body, aux = proposed_experiments(features=features, activation='swish')
+=======
+
+    decoder_output, edge, body = proposed_experiments(features=features, activation='swish')
+>>>>>>> Stashed changes
 
     total_cls = classifier(decoder_output, num_classes=classes, upper=4, name='output')
     edge_cls = edge_classifier(edge, upper=4, name='edge')
     body_cls = classifier(body, num_classes=classes, upper=4, name='body')
-    aux_cls = classifier(aux, num_classes=classes, upper=8, name='aux')
+    # aux_cls = classifier(aux, num_classes=classes, upper=8, name='aux')
 
 
     model_output = [total_cls, edge_cls, body_cls, aux_cls]
@@ -238,11 +243,15 @@ def build_generator(input_shape=(512, 1024, 3), classes=19):
     """
     features = [c2, c5]
 
+<<<<<<< Updated upstream
 
     model_output = deepLabV3Plus(features=features, activation='swish')
     # decoder_output, _, _, _ = proposed_experiments(features=features, activation='swish')
 
     model_output = classifier(model_output, num_classes=classes, upper=4, name='output')
+=======
+    model_output = [total_cls, edge_cls, body_cls]
+>>>>>>> Stashed changes
 
     return model_input, model_output
 
@@ -291,10 +300,10 @@ def classifier(x, num_classes=19, upper=4, name=None):
     return x
 
 def edge_classifier(x, upper=4, name=None):
-    x = layers.Conv2D(1, 1, strides=1,
-                      kernel_regularizer=DECAY,
-                      kernel_initializer=CONV_KERNEL_INITIALIZER)(x)
-    x = Activation('sigmoid')(x)
+    # x = layers.Conv2D(1, 1, strides=1,
+    #                   kernel_regularizer=DECAY,
+    #                   kernel_initializer=CONV_KERNEL_INITIALIZER)(x)
+    # x = Activation('sigmoid')(x)
     x = layers.UpSampling2D(size=(upper, upper), interpolation='bilinear', name=name)(x)
     return x
 
